@@ -3,8 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Habitudes – suivi d'habitudes gratuit</title>
-<meta name="description" content="Suis tes habitudes jour après jour : séries, statistiques, calendrier. Gratuit, sans compte, fonctionne hors ligne et tes données restent sur ton appareil.">
+<title>Élan – Suivi d'habitudes gratuit, séries et jauges</title>
+<meta name="description" content="Élan : suis tes habitudes jour après jour : séries, statistiques, calendrier. Gratuit, sans compte, fonctionne hors ligne et tes données restent sur ton appareil.">
+<meta property="og:title" content="Élan – Suivi d'habitudes gratuit">
+<meta property="og:description" content="Séries, jauges de 0 à 100 % et statistiques. Gratuit, sans compte, hors ligne.">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="fr_FR">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#f4f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#11181f" media="(prefers-color-scheme: dark)">
@@ -12,7 +16,7 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Habitudes">
+<meta name="apple-mobile-web-app-title" content="Élan">
 <style>
 :root{
   --bg:#f4f6f8; --card:#fff; --ink:#18222b; --muted:#6a7885; --line:#e1e6ea; --accent:#2f9e6e; --accent-ink:#fff;
@@ -368,7 +372,7 @@ function viewToday() {
       <div class="mt"><div><span class="mn" id="mnum">${Math.round(shown)}</span><span class="mu">%</span></div>
         <div class="ml"><b>${label}</b><span id="mmsg">${esc(meterMsg(dp, hs.length, nd))}</span></div></div>
       <div class="mbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${dp}" aria-label="Avancement de la journée"><span id="mfill" style="width:${shown}%"></span></div></div></div>
-    <div class="head"><div><h1>Habitudes</h1><p class="sub">${esc(d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }))}</p></div>${installed() ? "" : `<button class="btn dl" id="dl">⬇ Télécharger</button>`}</div>
+    <div class="head"><div><h1>Élan</h1><p class="sub">${esc(d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }))}</p></div>${installed() ? "" : `<button class="btn dl" id="dl">⬇ Télécharger</button>`}</div>
     <div class="week"><button class="iconbtn" data-week="-1" aria-label="Semaine précédente">‹</button><div class="days">${strip}</div>
     <button class="iconbtn" data-week="1" aria-label="Semaine suivante" ${weekBack === 0 ? "disabled" : ""}>›</button></div>
     ${body}`;
@@ -441,7 +445,7 @@ function viewStats() {
 function viewSettings() {
   const arch = S.habits.filter(h => h.archived);
   return `<h1>Réglages</h1>
-    ${installed() ? "" : `<div class="card set" id="installBox" style="margin-top:1rem"><b>Télécharger l'application</b><p>Ajoute Habitudes à ton écran d'accueil : elle s'ouvre comme une vraie app, même sans internet.</p><button class="btn" id="dl">⬇ Télécharger</button></div>`}
+    ${installed() ? "" : `<div class="card set" id="installBox" style="margin-top:1rem"><b>Télécharger l'application</b><p>Ajoute Élan à ton écran d'accueil : elle s'ouvre comme une vraie app, même sans internet.</p><button class="btn" id="dl">⬇ Télécharger</button></div>`}
     <div class="card set" style="margin-top:1rem"><b>Sauvegarde</b><p>Tes données sont uniquement sur cet appareil. Exporte-les pour les garder en sécurité ou les passer sur un autre appareil.</p>
       <div class="row"><button class="btn ghost" id="export">Exporter (fichier)</button><button class="btn ghost" id="import">Importer…</button></div>
       <input type="file" id="file" accept="application/json,.json" hidden></div>
@@ -595,7 +599,7 @@ function download() {
   const ua = navigator.userAgent, ios = /iPhone|iPad|iPod/.test(ua), android = /Android/.test(ua);
   const steps = ios ? ["Ouvre cette page dans <b>Safari</b>.", "Appuie sur le bouton <b>Partager</b> (carré avec une flèche vers le haut).", "Choisis <b>Sur l'écran d'accueil</b>, puis <b>Ajouter</b>."]
     : android ? ["Ouvre cette page dans <b>Chrome</b>.", "Appuie sur le menu <b>⋮</b> en haut à droite.", "Choisis <b>Installer l'application</b> (ou <b>Ajouter à l'écran d'accueil</b>)."]
-    : ["Ouvre cette page dans <b>Chrome</b> ou <b>Edge</b>.", "Clique sur l'icône d'installation à droite de la barre d'adresse (écran avec une flèche), ou sur le menu <b>⋮</b> → <b>Installer Habitudes</b>."];
+    : ["Ouvre cette page dans <b>Chrome</b> ou <b>Edge</b>.", "Clique sur l'icône d'installation à droite de la barre d'adresse (écran avec une flèche), ou sur le menu <b>⋮</b> → <b>Installer Élan</b>."];
   dlg.innerHTML = `<form method="dialog" style="display:grid;gap:1rem;padding:1.2rem">
     <h3 style="margin:0">Télécharger l'application</h3>
     <p style="margin:0;color:var(--muted)">Gratuite, sans compte, et elle fonctionne sans internet une fois installée.</p>

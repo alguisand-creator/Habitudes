@@ -1,6 +1,6 @@
 {
-  "name": "Habitudes – suivi d'habitudes gratuit",
-  "short_name": "Habitudes",
+  "name": "Élan – Suivi d'habitudes gratuit",
+  "short_name": "Élan",
   "description": "Suis tes habitudes jour après jour : séries, statistiques et calendrier. Gratuit, sans compte, hors ligne.",
   "id": "./",
   "start_url": "./?source=pwa",

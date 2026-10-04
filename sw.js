@@ -1,4 +1,4 @@
-// Habitudes – service worker (hors-ligne). Portée : la racine du site Habitudes.
+// Élan – service worker (hors-ligne), portée : tout le dossier de l'appli.
 // « Réseau d'abord » : avec du réseau on sert la dernière version, sans réseau la copie en cache.
 
 const VERSION = "habitudes-v1";   // à changer pour forcer le vidage de l'ancien cache
