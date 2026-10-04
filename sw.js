@@ -1,9 +1,9 @@
 // Élan – service worker (hors-ligne), portée : tout le dossier de l'appli.
 // « Réseau d'abord » : avec du réseau on sert la dernière version, sans réseau la copie en cache.
 
-const VERSION = "habitudes-v1";   // à changer pour forcer le vidage de l'ancien cache
+const VERSION = "habitudes-v2";   // à changer pour forcer le vidage de l'ancien cache
 const TIMEOUT = 4000;
-const FILES = ["./", "index.html", "manifest.json", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
+const FILES = ["./", "index.html", "style.css", "app.js", "manifest.json", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 
 const clean = r => new Response(r.body, { status: r.status, statusText: r.statusText, headers: r.headers });
 const norm = url => { const u = new URL(url, self.location.href); return u.origin + u.pathname.replace(/index\.html$/, ""); };

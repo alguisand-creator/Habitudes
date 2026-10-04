@@ -8,8 +8,8 @@
   "display": "standalone",
   "orientation": "portrait",
   "lang": "fr",
-  "background_color": "#11181f",
-  "theme_color": "#15212b",
+  "background_color": "#0f161c",
+  "theme_color": "#0f161c",
   "categories": ["health", "lifestyle", "productivity"],
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
