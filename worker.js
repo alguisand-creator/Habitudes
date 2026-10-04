@@ -267,6 +267,43 @@ async function handleSync(request, env, url) {
   return json({ error: "Méthode non autorisée" }, 405);
 }
 
+/* ───────────── Compteurs anonymes ───────────── */
+// Aucun identifiant, aucune IP conservée : seulement des totaux par jour (installations, visites par source de lien).
+// Les totaux des 30 derniers jours sont lisibles publiquement sur GET /api/stat.
+const STAT_MAX_DAY = 800;   // plafond d'événements par jour (protège le quota d'écritures gratuit de KV)
+async function handleStat(request, env, url) {
+  if (!env.ELAN) return json({ error: "Indisponible" }, 503);
+  if (request.method === "GET") {
+    const out = { jours: {}, total: { installations: 0, visites: {} } };
+    for (let i = 0; i < 30; i++) {
+      const day = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10);
+      const rec = await env.ELAN.get("stat:" + day, "json");
+      if (!rec) continue;
+      out.jours[day] = { installations: rec.install || 0, visites: rec.src || {} };
+      out.total.installations += rec.install || 0;
+      for (const [s, n] of Object.entries(rec.src || {})) out.total.visites[s] = (out.total.visites[s] || 0) + n;
+    }
+    return json(out);
+  }
+  if (request.method !== "POST") return json({ error: "Méthode non autorisée" }, 405);
+  const origin = request.headers.get("Origin");
+  if (origin && new URL(origin).host !== url.host) return json({ error: "Origine refusée" }, 403);
+  if (limited(request.headers.get("CF-Connecting-IP") || "inconnu")) return json({ error: "Trop de demandes" }, 429);
+  let body; try { body = await request.json(); } catch (_) { return json({ error: "Requête invalide" }, 400); }
+  const e = body && body.e;
+  if (e !== "install" && e !== "visit") return json({ error: "Requête invalide" }, 400);
+  let src = String((body && body.src) || "").toLowerCase();
+  if (!/^[a-z0-9_-]{1,20}$/.test(src)) src = "";
+  if (e === "visit" && !src) return json({ ok: true });
+  const key = "stat:" + new Date().toISOString().slice(0, 10);
+  const rec = (await env.ELAN.get(key, "json")) || { install: 0, src: {}, n: 0 };
+  if (rec.n >= STAT_MAX_DAY) return json({ ok: true });
+  rec.n++;
+  if (e === "install") rec.install++; else rec.src[src] = (rec.src[src] || 0) + 1;
+  await env.ELAN.put(key, JSON.stringify(rec), { expirationTtl: 60 * 60 * 24 * 100 });
+  return json({ ok: true });
+}
+
 export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(runDue(env, new Date(event.scheduledTime)));
@@ -277,6 +314,7 @@ export default {
     try {
       if (url.pathname.startsWith("/api/push/")) return await handlePush(request, env, url);
       if (url.pathname.startsWith("/api/sync/")) return await handleSync(request, env, url);
+      if (url.pathname === "/api/stat") return await handleStat(request, env, url);
     } catch (e) {
       console.error("Erreur serveur", e && e.message);
       return json({ error: "Erreur du serveur" }, 500);

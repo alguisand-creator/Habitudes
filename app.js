@@ -686,7 +686,7 @@ function viewSettings() {
         <div class="row"><button class="btn danger" id="wipe">Tout effacer</button><button class="btn ghost" id="resetset">Réinitialiser les paramètres</button><button class="btn ghost" id="replay">Revoir la présentation</button></div></div></div>
 
     ${installed() ? "" : `<div class="group"><h2>Application</h2><div class="card set"><b>Télécharger l'application</b><p>Ajoute Élan à ton écran d'accueil : elle s'ouvre comme une vraie app, même sans internet.</p><button class="btn" id="dl">⬇ Télécharger</button></div></div>`}
-    <p class="legal">Élan · gratuit, sans compte, sans pub.<br>Aucune donnée n'est envoyée sur internet.<br><a href="confidentialite">Confidentialité</a> · <a href="conditions">Conditions</a></p>`;
+    <p class="legal">Élan · gratuit, sans compte, sans pub.<br>Tes données restent sur ton appareil.<br><a href="confidentialite">Confidentialité</a> · <a href="conditions">Conditions</a></p>`;
 }
 
 /* ---------- fenêtre d'édition ---------- */
@@ -1249,3 +1249,23 @@ probeServer().then(async () => {
   await pushNow();
   if (tab === "settings") render();
 });
+
+// Mesure anonyme, sans cookie ni identifiant : une visite venue d'un lien repéré (?src=tiktok)
+// et la première ouverture de l'appli installée. Désactivée si le navigateur envoie « Ne pas me suivre ».
+(function stats() {
+  try {
+    if (navigator.doNotTrack === "1") return;
+    const send = body => fetch("/api/stat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), keepalive: true }).catch(() => {});
+    const p = new URLSearchParams(location.search), src = (p.get("src") || "").toLowerCase();
+    if (src) {
+      send({ e: "visit", src });
+      p.delete("src");   // on retire le repère de l'adresse : un rechargement ne recompte pas
+      history.replaceState(null, "", location.pathname + (p.toString() ? "?" + p : "") + location.hash);
+    }
+    const counted = () => { try { return localStorage.getItem("elan-compte") === "1"; } catch (_) { return true; } };
+    const mark = () => { try { localStorage.setItem("elan-compte", "1"); } catch (_) {} };
+    const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+    if (standalone && !counted()) { send({ e: "install" }); mark(); }
+    addEventListener("appinstalled", () => { if (!counted()) { send({ e: "install" }); mark(); } });
+  } catch (_) {}
+})();
