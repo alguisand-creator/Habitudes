@@ -7,6 +7,7 @@
     "binding": "ASSETS",
     "run_worker_first": ["/api/*"]
   },
+  "kv_namespaces": [{ "binding": "ELAN", "id": "443b5857d9634d03b655b9d5982dce46" }],
   "triggers": { "crons": ["* * * * *"] },
   "observability": { "enabled": true }
 }
