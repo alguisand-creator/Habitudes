@@ -662,8 +662,8 @@ function mirror() {
   idbSet("state", st).catch(() => {});
 }
 async function notify(title, body, tag) {
-  try { const reg = await navigator.serviceWorker.ready; await reg.showNotification(title, { body, icon: "icons/icon-192.png", badge: "icons/icon-192.png", tag, data: { url: "./" } }); }
-  catch (_) { try { new Notification(title, { body, icon: "icons/icon-192.png" }); } catch (__) {} }
+  try { const reg = await navigator.serviceWorker.ready; await reg.showNotification(title, { body, icon: "icons/blank-96.png", badge: "icons/badge-96.png", tag, data: { url: "./" } }); }
+  catch (_) { try { new Notification(title, { body, icon: "icons/blank-96.png" }); } catch (__) {} }
 }
 async function registerPeriodic() {
   try { const reg = await navigator.serviceWorker.ready; if (reg.periodicSync) await reg.periodicSync.register("elan-remind", { minInterval: 3600 * 1000 }); } catch (_) {}

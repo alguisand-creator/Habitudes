@@ -1,9 +1,9 @@
 // Élan – service worker (hors-ligne), portée : tout le dossier de l'appli.
 // « Réseau d'abord » : avec du réseau on sert la dernière version, sans réseau la copie en cache.
 
-const VERSION = "habitudes-v3";   // à changer pour forcer le vidage de l'ancien cache
+const VERSION = "habitudes-v4";   // à changer pour forcer le vidage de l'ancien cache
 const TIMEOUT = 4000;
-const FILES = ["./", "index.html", "style.css", "app.js", "manifest.json", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
+const FILES = ["./", "index.html", "style.css", "app.js", "manifest.json", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png", "icons/blank-96.png", "icons/badge-96.png"];
 
 const clean = r => new Response(r.body, { status: r.status, statusText: r.statusText, headers: r.headers });
 const norm = url => { const u = new URL(url, self.location.href); return u.origin + u.pathname.replace(/index\.html$/, ""); };
@@ -54,7 +54,7 @@ const idb = (mode, fn) => new Promise((res, rej) => {
 });
 const pad2 = n => String(n).padStart(2, "0");
 const ymd = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-const show = (title, body, tag) => self.registration.showNotification(title, { body, icon: "icons/icon-192.png", badge: "icons/icon-192.png", tag, data: { url: "./" } });
+const show = (title, body, tag) => self.registration.showNotification(title, { body, icon: "icons/blank-96.png", badge: "icons/badge-96.png", tag, data: { url: "./" } });
 
 async function remind() {
   const st = await idb("readonly", s => s.get("state"));
