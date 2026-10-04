@@ -686,7 +686,7 @@ function viewSettings() {
         <div class="row"><button class="btn danger" id="wipe">Tout effacer</button><button class="btn ghost" id="resetset">Réinitialiser les paramètres</button><button class="btn ghost" id="replay">Revoir la présentation</button></div></div></div>
 
     ${installed() ? "" : `<div class="group"><h2>Application</h2><div class="card set"><b>Télécharger l'application</b><p>Ajoute Élan à ton écran d'accueil : elle s'ouvre comme une vraie app, même sans internet.</p><button class="btn" id="dl">⬇ Télécharger</button></div></div>`}
-    <p class="legal">Élan · gratuit, sans compte, sans pub.<br>Aucune donnée n'est envoyée sur internet.</p>`;
+    <p class="legal">Élan · gratuit, sans compte, sans pub.<br>Aucune donnée n'est envoyée sur internet.<br><a href="confidentialite">Confidentialité</a> · <a href="conditions">Conditions</a></p>`;
 }
 
 /* ---------- fenêtre d'édition ---------- */

@@ -186,6 +186,7 @@ h2 small{margin-left:auto;font-weight:500;color:var(--muted);font-size:.82rem}
 .set p{margin:.2rem 0 .8rem;color:var(--muted);font-size:.93rem}
 .set .row{display:flex;gap:.6rem;flex-wrap:wrap}
 .legal{color:var(--muted);font-size:.85rem;text-align:center;margin-top:1.5rem}
+.legal a{color:var(--accent)}
 
 /* fenêtre d'édition */
 dialog{border:0;border-radius:24px;padding:0;width:min(520px,calc(100vw - 1.2rem));max-height:92dvh;background:var(--card);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.4)}

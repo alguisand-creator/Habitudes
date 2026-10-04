@@ -1,0 +1,13 @@
+/* Élan – pages légales */
+:root{--bg:#f3f6f8;--card:#fff;--ink:#18222b;--muted:#6a7885;--line:#e1e6ea;--accent:#2f9e6e}
+@media (prefers-color-scheme:dark){:root{--bg:#0f161c;--card:#18222b;--ink:#e8eef3;--muted:#8d9ba8;--line:#27333e;--accent:#4cc38a}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font:1rem/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.page{max-width:720px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 1.2rem) 1rem 3rem}
+.back{display:inline-block;margin-bottom:1rem;color:var(--accent);text-decoration:none;font-weight:600}
+h1{font-size:1.6rem;letter-spacing:-.01em;margin:.2rem 0 .6rem;line-height:1.2}
+h2{font-size:1.1rem;margin:1.8rem 0 .4rem}
+.lead{color:var(--muted);margin:0 0 1rem}
+p{margin:.5rem 0}
+a{color:var(--accent)}
