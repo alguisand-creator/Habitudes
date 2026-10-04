@@ -1,7 +1,7 @@
 // Élan – service worker (hors-ligne), portée : tout le dossier de l'appli.
 // « Réseau d'abord » : avec du réseau on sert la dernière version, sans réseau la copie en cache.
 
-const VERSION = "habitudes-v4";   // à changer pour forcer le vidage de l'ancien cache
+const VERSION = "habitudes-v5";   // à changer pour forcer le vidage de l'ancien cache
 const TIMEOUT = 4000;
 const FILES = ["./", "index.html", "style.css", "app.js", "manifest.json", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png", "icons/blank-96.png", "icons/badge-96.png"];
 
@@ -58,12 +58,12 @@ const show = (title, body, tag) => self.registration.showNotification(title, { b
 
 async function remind() {
   const st = await idb("readonly", s => s.get("state"));
-  if (!st || !st.notif || Notification.permission !== "granted") return;
+  if (!st || !st.notif || st.server || Notification.permission !== "granted") return;   // en mode serveur, c'est lui qui envoie
   const now = new Date(), today = ymd(now), mins = now.getHours() * 60 + now.getMinutes();
   let fired = await idb("readonly", s => s.get("fired")); if (!fired || fired.date !== today) fired = { date: today, ids: [] };
   let changed = false;
   for (let i = 0; i < st.rem.length; i++) {
-    const r = st.rem[i]; if (!r.on || fired.ids.includes(i)) continue;
+    const r = st.rem[i]; if (!r.on || fired.ids.includes(i) || (r.dow >= 0 && r.dow !== now.getDay())) continue;
     const [h, m] = r.t.split(":").map(Number), at = h * 60 + m;
     if (mins < at || mins - at > 90) continue;
     fired.ids.push(i); changed = true;
@@ -81,4 +81,10 @@ self.addEventListener("notificationclick", e => {
     for (const w of wins) if ("focus" in w) return w.focus();
     await self.clients.openWindow(new URL((e.notification.data && e.notification.data.url) || "./", self.registration.scope).href);
   })());
+});
+
+// Notification envoyée par le serveur Cloudflare (rappels fiables, appli fermée).
+self.addEventListener("push", e => {
+  let d = {}; try { d = e.data ? e.data.json() : {}; } catch (_) {}
+  e.waitUntil(show(d.title || "Élan", d.body || "", d.tag || undefined));
 });

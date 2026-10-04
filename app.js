@@ -40,9 +40,27 @@ const BADGES = [
   ["🎯","Journée parfaite","Tout à 100 % un jour", s => s.perfect >= 1], ["🧩","Collectionneur","5 habitudes", s => s.habits >= 5],
   ["🌈","Équilibré","3 catégories actives", s => s.cats >= 3]
 ];
-const DEFAULTS = { theme: "auto", accent: ACCENTS[0], fs: "m", anim: true, ws: "mon", doneLast: false, streaks: true, quote: true, vibrate: true, sound: false, confetti: true, name: "", notif: false, onlyIfLeft: true };
-const REM_NAMES = ["Rappel du matin", "Rappel de l'après-midi", "Rappel du soir"];
-const REM_DEFAULT = [{ on: true, t: "08:00" }, { on: false, t: "14:00" }, { on: true, t: "20:00" }];
+const DEFAULTS = { theme: "auto", accent: ACCENTS[0], fs: "m", anim: true, ws: "mon", doneLast: false, streaks: true, quote: true, vibrate: true, sound: false, confetti: true, name: "", notif: false, onlyIfLeft: true, joker: true, serverPush: true };
+const REM_NAMES = ["Rappel du matin", "Rappel de l'après-midi", "Rappel du soir", "Revue du dimanche"];
+const REM_DEFAULT = [{ on: true, t: "08:00" }, { on: false, t: "14:00" }, { on: true, t: "20:00" }, { on: false, t: "19:00" }];
+// Routines : plusieurs habitudes ajoutées d'un coup. [icône, nom, objectif (0 = case à cocher), unité, catégorie]
+const ROUTINES = [
+  { id: "matin", emoji: "☀️", name: "Routine du matin", desc: "Bien démarrer la journée", items: [
+    ["💧", "Boire un grand verre d'eau", 0, "", "nutri"], ["🧘", "Étirements 10 min", 10, "min", "sport"], ["🧠", "Méditer 10 min", 10, "min", "mind"],
+    ["📝", "Noter mes 3 priorités", 0, "", "work"], ["🥗", "Petit-déjeuner équilibré", 0, "", "nutri"] ] },
+  { id: "etudiant", emoji: "🎓", name: "Étudiant", desc: "Réviser sans s'épuiser", items: [
+    ["📖", "Réviser 1 h 30", 1.5, "h", "work"], ["📝", "Relire mes cours du jour", 0, "", "work"], ["🚶", "Marcher 30 min", 30, "min", "sport"],
+    ["😴", "Dormir 8 h", 8, "h", "sleep"], ["💧", "Boire 1,5 L d'eau", 1.5, "L", "nutri"] ] },
+  { id: "sportif", emoji: "💪", name: "Sportif", desc: "Performance et récupération", items: [
+    ["💪", "Entraînement 60 min", 60, "min", "sport"], ["💧", "Boire 3 L d'eau", 3, "L", "nutri"], ["🥗", "Protéines à chaque repas", 0, "", "nutri"],
+    ["🧘", "Étirements 10 min", 10, "min", "sport"], ["😴", "Dormir 8 h", 8, "h", "sleep"] ] },
+  { id: "bienetre", emoji: "🌿", name: "Bien-être", desc: "Calme et équilibre", items: [
+    ["🧘", "Méditer 10 min", 10, "min", "mind"], ["📝", "Écrire 3 gratitudes", 0, "", "mind"], ["🚶", "Marcher 30 min", 30, "min", "sport"],
+    ["❤️", "Appeler un proche", 0, "", "rel"], ["😴", "Écrans coupés avant 22 h", 0, "", "sleep"] ] },
+  { id: "pro", emoji: "💼", name: "Productivité", desc: "Travailler mieux, pas plus", items: [
+    ["📝", "Planifier ma journée", 0, "", "work"], ["💼", "Travail concentré 2 h", 2, "h", "work"], ["🧹", "Ranger mon bureau", 0, "", "work"],
+    ["🚶", "Pause marche 10 min", 10, "min", "sport"], ["📖", "Apprendre 20 min", 20, "min", "mind"] ] }
+];
 
 /* ---------- utilitaires ---------- */
 const $ = s => document.querySelector(s);
@@ -92,17 +110,29 @@ function clean(s) {
     if (Object.keys(o).length) prog[k] = o;
   }
   const st = { ...DEFAULTS, rem: REM_DEFAULT.map(x => ({ ...x })) }, r = s.settings && typeof s.settings === "object" ? s.settings : {};
-  if (Array.isArray(r.rem) && r.rem.length === 3) st.rem = r.rem.map((x, i) => ({ on: typeof (x && x.on) === "boolean" ? x.on : REM_DEFAULT[i].on, t: /^([01]\d|2[0-3]):[0-5]\d$/.test((x && x.t) || "") ? x.t : REM_DEFAULT[i].t }));
+  if (Array.isArray(r.rem)) st.rem = REM_DEFAULT.map((d, i) => { const x = r.rem[i]; return { on: typeof (x && x.on) === "boolean" ? x.on : d.on, t: /^([01]\d|2[0-3]):[0-5]\d$/.test((x && x.t) || "") ? x.t : d.t }; });
   if (["auto", "light", "dark"].includes(r.theme)) st.theme = r.theme;
   if (/^#[0-9a-f]{6}$/i.test(r.accent || "")) st.accent = r.accent;
   if (["s", "m", "l"].includes(r.fs)) st.fs = r.fs;
   if (["mon", "sun"].includes(r.ws)) st.ws = r.ws;
-  for (const k of ["anim", "doneLast", "streaks", "quote", "vibrate", "sound", "confetti", "notif", "onlyIfLeft"]) if (typeof r[k] === "boolean") st[k] = r[k];
+  for (const k of ["anim", "doneLast", "streaks", "quote", "vibrate", "sound", "confetti", "notif", "onlyIfLeft", "joker", "serverPush"]) if (typeof r[k] === "boolean") st[k] = r[k];
   if (typeof r.name === "string") st.name = r.name.slice(0, 20);
-  return { habits, log, prog, settings: st };
+  // jokers : jours de repos qui ne cassent pas les séries (un par semaine)
+  const jokers = (Array.isArray(s.jokers) ? s.jokers : []).filter(isKey).slice(-400);
+  const num = v => Number.isFinite(v) && v > 0 ? v : 0;
+  const sync = /^[A-Z2-9]{4}(-[A-Z2-9]{4}){4}$/.test(s.sync || "") ? s.sync : "";
+  return { habits, log, prog, jokers: [...new Set(jokers)], settings: st, updated: num(s.updated), backup: num(s.backup), snooze: num(s.snooze), sync };
 }
 let S = load();
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (_) { toast("Enregistrement impossible : stockage plein ou bloqué."); } mirror(); };
+// Enregistre dans le navigateur, puis déclenche (en différé) la copie vers le fichier, la synchro et les rappels serveur.
+// quiet = true : changement venu de la synchro, on ne le renvoie pas.
+const save = quiet => {
+  if (!quiet) S.updated = Date.now();
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (_) { toast("Enregistrement impossible : stockage plein ou bloqué."); }
+  mirror();
+  if (!quiet) { fileSoon(); syncSoon(); }
+  pushSoon();
+};
 
 function applySettings() {
   const s = S.settings, r = document.documentElement;
@@ -142,11 +172,22 @@ function toggle(id, k) {
   setPct(h, k, pct(h, k) >= 100 ? 0 : 100);
   save();
 }
+// Joker : un jour de repos par semaine. Les habitudes non faites ce jour-là ne cassent pas la série et ne comptent pas dans les moyennes.
+const isJoker = k => S.jokers.includes(k);
+const jokerIn = k => { const s = wk(k), e = addDays(s, 6); return S.jokers.find(j => j >= s && j <= e) || null; };   // joker utilisé dans la semaine de k
+const skipped = (h, k) => isJoker(k) && !done(h, k);
+
+function toggleJoker(k) {
+  if (isJoker(k)) S.jokers = S.jokers.filter(j => j !== k);
+  else { if (jokerIn(k)) return false; S.jokers.push(k); S.jokers.sort(); }
+  save(); return true;
+}
+
 // Série en cours : jours prévus consécutifs réalisés. Aujourd'hui non fait ne casse pas la série.
 function streak(h) {
   const t = todayKey(); let n = 0, k = t;
   for (let i = 0; i < 1500 && k >= h.created; i++, k = addDays(k, -1)) {
-    if (!sched(h, k)) continue;
+    if (!sched(h, k) || skipped(h, k)) continue;
     if (done(h, k)) n++; else if (k !== t) break;
   }
   return n;
@@ -154,24 +195,24 @@ function streak(h) {
 function bestStreak(h) {
   const t = todayKey(); let cur = 0, best = 0;
   for (let k = h.created, i = 0; k <= t && i < 4000; k = addDays(k, 1), i++) {
-    if (!sched(h, k)) continue;
+    if (!sched(h, k) || skipped(h, k)) continue;
     if (done(h, k)) { cur++; best = Math.max(best, cur); } else if (k !== t) cur = 0;
   }
   return best;
 }
 function rate(h, days) {
   const t = todayKey(); let p = 0, d = 0;
-  for (let i = 0; i < days; i++) { const k = addDays(t, -i); if (k < h.created) break; if (sched(h, k)) { p++; if (done(h, k)) d++; } }
+  for (let i = 0; i < days; i++) { const k = addDays(t, -i); if (k < h.created) break; if (sched(h, k) && !skipped(h, k)) { p++; if (done(h, k)) d++; } }
   return p ? d / p : null;
 }
 // Avancement moyen (0-100) d'une habitude sur les derniers jours prévus ; null s'il n'y en a aucun.
 function avgPct(h, days) {
   const t = todayKey(); let s = 0, n = 0;
-  for (let i = 0; i < days; i++) { const k = addDays(t, -i); if (k < h.created) break; if (sched(h, k)) { s += pct(h, k); n++; } }
+  for (let i = 0; i < days; i++) { const k = addDays(t, -i); if (k < h.created) break; if (sched(h, k) && !skipped(h, k)) { s += pct(h, k); n++; } }
   return n ? s / n : null;
 }
 const total = h => Object.values(S.log).reduce((n, l) => n + (l.includes(h.id) ? 1 : 0), 0);
-function dayRatio(k) { const hs = forDay(k); return hs.length ? dayPct(k) / 100 : null; }
+function dayRatio(k) { const hs = forDay(k); return hs.length && !(isJoker(k) && dayPct(k) === 0) ? dayPct(k) / 100 : null; }
 const scheduleText = h => h.days.length === 7 ? "Tous les jours" : h.days.length === 0 ? "Aucun jour" :
   [0,1,2,3,4].every(i => h.days.includes(i)) && h.days.length === 5 ? "En semaine" :
   h.days.length === 2 && h.days.includes(5) && h.days.includes(6) ? "Le week-end" :
@@ -281,7 +322,7 @@ function viewToday() {
     body = `<div class="card empty">${EMPTY_SVG}<h2 style="margin:.4rem 0;justify-content:center">Ajoute ta première habitude</h2>
       <p style="color:var(--muted);margin:0">Commence petit : une seule habitude suffit. Choisis une idée ou crée la tienne.</p>
       <div class="chips">${SUGGEST.map((s, i) => `<button class="chip" data-sug="${i}">${s[0]} ${esc(s[1])}</button>`).join("")}</div>
-      <p style="margin:1.2rem 0 0"><button class="btn" data-new>Créer une habitude</button></p></div>`;
+      <p style="margin:1.2rem 0 0"><button class="btn" data-new>Créer une habitude</button> <button class="btn ghost" data-routines>📦 Routines</button></p></div>`;
   } else if (!hs.length) {
     body = `<div class="card empty"><div class="em">😌</div><p style="margin:.4rem 0 0">Aucune habitude prévue ce jour-là. Profite !</p></div>`;
   } else {
@@ -294,7 +335,7 @@ function viewToday() {
         <button class="more" data-edit="${h.id}" aria-label="Modifier ${esc(h.name)}">⋯</button>
         ${h.goal ? `<div class="gauge" style="--p:${p};--pc:${pctColor(p)}"><input type="range" min="0" max="100" step="1" value="${p}" data-gauge="${h.id}" aria-label="Avancement de ${esc(h.name)}">
           <div class="scale"><span>0 %</span><span>50 %</span><span>100 %</span></div></div>` : ""}</div>`;
-    }).join("")}</div>`;
+    }).join("")}</div><p style="text-align:center;margin:1rem 0 0"><button class="btn ghost" data-routines>📦 Ajouter une routine</button></p>`;
   }
 
   const q = QUOTES[dayOfYear() % QUOTES.length];
@@ -308,7 +349,22 @@ function viewToday() {
     ${S.settings.quote ? `<p class="quote"><i>“</i>${esc(q)}<i>”</i></p>` : ""}
     <div class="week"><button class="iconbtn" data-week="-1" aria-label="Semaine précédente">‹</button><div class="days">${strip}</div>
     <button class="iconbtn" data-week="1" aria-label="Semaine suivante" ${wk(sel) >= wk(t) ? "disabled" : ""}>›</button></div>
+    ${backupBanner()}${reviewBanner(t)}${jokerRow(t, hs.length)}
     ${body}`;
+}
+
+// Joker du jour sélectionné : un seul par semaine, il protège la série ce jour-là.
+function jokerRow(t, n) {
+  if (!S.settings.joker || !active().length || !n || sel > t) return "";
+  if (isJoker(sel)) return `<div class="joker on"><span>🃏 <b>Jour de repos</b> : ta série est protégée.</span><button class="btn ghost" data-joker>Retirer</button></div>`;
+  const used = jokerIn(sel);
+  if (used) return `<div class="joker"><span>🃏 Joker déjà utilisé cette semaine (${esc(parse(used).toLocaleDateString("fr-FR", { weekday: "long" }))}).</span></div>`;
+  return `<div class="joker"><span>🃏 <b>1 joker</b> dispo cette semaine : saute un jour sans casser ta série.</span><button class="btn ghost" data-joker>Utiliser</button></div>`;
+}
+// Le dernier jour de la semaine, on propose la revue.
+function reviewBanner(t) {
+  if (sel !== t || !active().length || t !== addDays(wk(t), 6)) return "";
+  return `<div class="joker on"><span>📋 <b>Ta revue de la semaine est prête.</b></span><button class="btn ghost" data-review>Voir</button></div>`;
 }
 
 // Texte sous le nom : quantité atteinte pour une habitude chiffrée, série de jours sinon.
@@ -320,6 +376,7 @@ function metaText(h, k) {
 }
 function meterMsg(p, n, nd) {
   if (!n) return "Rien de prévu ce jour-là";
+  if (isJoker(sel) && p < 100) return nd ? `${nd}/${n} faites · jour de repos 🃏` : "Jour de repos 🃏 série protégée";
   if (p >= 100) return "Journée parfaite, bravo ! 🎉";
   if (p === 0) return `${n} à faire, c'est parti !`;
   if (p < 50) return `${nd}/${n} terminées, continue !`;
@@ -367,6 +424,46 @@ function radarSvg(days) {
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Équilibre par catégorie">${rings}${spokes}<polygon class="poly" points="${poly}"/>${dots}${labels}</svg>`;
 }
 
+// Bilan d'une semaine (du premier jour de la semaine jusqu'à aujourd'hui au plus).
+function weekStats(start) {
+  const t = todayKey(), end = addDays(start, 6) > t ? t : addDays(start, 6);
+  let sum = 0, n = 0, perfect = 0, jokers = 0, doneN = 0;
+  const per = new Map();
+  for (let k = start; k <= end; k = addDays(k, 1)) {
+    const hs = forDay(k); if (!hs.length) continue;
+    if (isJoker(k)) jokers++;
+    const live = hs.filter(h => !skipped(h, k)); if (!live.length) continue;
+    sum += live.reduce((a, h) => a + pct(h, k), 0) / live.length; n++;
+    if (live.every(h => done(h, k))) perfect++;
+    for (const h of live) {
+      const e = per.get(h.id) || { h, s: 0, n: 0 };
+      e.s += pct(h, k); e.n++; if (done(h, k)) doneN++; per.set(h.id, e);
+    }
+  }
+  return { score: n ? sum / n : null, perfect, jokers, done: doneN, habits: [...per.values()].map(e => ({ h: e.h, avg: e.s / e.n })) };
+}
+const TIPS = ["Accroche-la à un moment fixe de ta journée (après le café, avant de dormir…).", "Réduis l'objectif de moitié pendant une semaine : mieux vaut petit mais régulier.",
+  "Place un rappel à l'heure où tu es le plus disponible.", "Prépare tout la veille pour que ce soit plus facile à lancer."];
+let reviewOff = 0;
+function reviewCard() {
+  const t = todayKey(), cur = weekStats(addDays(wk(t), -7 * reviewOff)), prev = weekStats(addDays(wk(t), -7 * (reviewOff + 1)));
+  const head = `<h2>📋 Revue de la semaine <small><span class="seg"><button data-rv="0" class="${reviewOff === 0 ? "on" : ""}">En cours</button><button data-rv="1" class="${reviewOff === 1 ? "on" : ""}">Dernière</button></span></small></h2>`;
+  if (cur.score === null) return `<div id="review">${head}<div class="card review"><p class="hint" style="margin:0">Pas encore de données pour cette semaine. Coche tes premières habitudes !</p></div></div>`;
+  const sc = Math.round(cur.score);
+  let delta = "";
+  if (prev.score !== null) { const d = sc - Math.round(prev.score); delta = d > 0 ? `<span class="up">▲ +${d} pts</span> vs semaine précédente` : d < 0 ? `<span class="down">▼ ${d} pts</span> vs semaine précédente` : "= comme la semaine précédente"; }
+  else delta = "Première semaine de données";
+  const hb = [...cur.habits].sort((a, b) => b.avg - a.avg), best = hb[0], weak = hb.length > 1 ? hb[hb.length - 1] : null;
+  const verdict = sc >= 80 ? "Superbe semaine, continue comme ça ! 🌟" : sc >= 50 ? "Belle régularité, tu es sur la bonne voie. 👍" : "Pas grave : chaque semaine est une nouvelle chance. 🌱";
+  return `<div id="review">${head}<div class="card review">
+    <div class="rv-top"><div class="rv-score" style="--pc:${pctColor(sc)}">${sc}<small>%</small></div><div><b>${verdict}</b><span class="hint" style="display:block">${delta}</span></div></div>
+    <ul class="rv-list">
+      ${best ? `<li>🏆 <span><b>Ta meilleure habitude</b><br>${esc(best.h.emoji)} ${esc(best.h.name)} · ${Math.round(best.avg)} %</span></li>` : ""}
+      ${weak && weak.avg < 100 && weak !== best ? `<li>🎯 <span><b>À renforcer</b><br>${esc(weak.h.emoji)} ${esc(weak.h.name)} · ${Math.round(weak.avg)} %<br><span class="hint">${TIPS[dayOfYear() % TIPS.length]}</span></span></li>` : ""}
+      <li>✅ <span><b>${cur.done} validation${cur.done > 1 ? "s" : ""}</b> · ${cur.perfect} journée${cur.perfect > 1 ? "s" : ""} parfaite${cur.perfect > 1 ? "s" : ""}${cur.jokers ? ` · ${cur.jokers} joker 🃏` : ""}</span></li>
+    </ul></div></div>`;
+}
+
 function viewStats() {
   const hs = active(), t = todayKey();
   if (!hs.length) return `<h1><span class="gt">Statistiques</span></h1><div class="card empty" style="margin-top:1rem">${EMPTY_SVG}<p>Ajoute une habitude pour voir tes statistiques.</p></div>`;
@@ -391,7 +488,7 @@ function viewStats() {
 
   // 7 derniers jours (taux de réussite)
   let p = 0, d = 0;
-  for (let i = 0; i < 7; i++) { const k = addDays(t, -i); for (const h of forDay(k)) { p++; if (done(h, k)) d++; } }
+  for (let i = 0; i < 7; i++) { const k = addDays(t, -i); for (const h of forDay(k)) { if (skipped(h, k)) continue; p++; if (done(h, k)) d++; } }
 
   // calendrier : 12 semaines, colonnes = semaines
   const first = addDays(wk(t), -7 * 11); let cells = "";
@@ -410,6 +507,7 @@ function viewStats() {
       <div class="card stat"><b>🔥 ${Math.max(0, ...hs.map(streak))}</b><span>meilleure série en cours</span></div>
       <div class="card stat"><b>${gs.perfect}</b><span>journée${gs.perfect > 1 ? "s" : ""} parfaite${gs.perfect > 1 ? "s" : ""}</span></div>
       <div class="card stat"><b>${gs.best}</b><span>record de série</span></div></div>
+    ${reviewCard()}
     <h2>Cette semaine <small>moyenne ${weekAvg}</small></h2><div class="card bars">${cols}</div>
     <h2>Équilibre <small><span class="seg"><button data-radar="7" class="${radarDays === 7 ? "on" : ""}">7 j</button><button data-radar="30" class="${radarDays === 30 ? "on" : ""}">30 j</button></span></small></h2>
     <div class="card radar">${radarSvg(radarDays)}</div>
@@ -438,11 +536,34 @@ function notifGroup() {
         <input type="time" class="txtin" style="max-width:7rem" data-rem="${i}" data-rf="t" value="${r.t}" aria-label="Heure du ${REM_NAMES[i].toLowerCase()}">
         <span class="switch"><input type="checkbox" data-rem="${i}" data-rf="on" ${r.on ? "checked" : ""} aria-label="${REM_NAMES[i]}"><i></i></span></div>`).join("")}
       ${sw("onlyIfLeft", "Seulement s'il reste des habitudes", "Pas de rappel si tout est déjà fait")}
+      ${srv.ok ? sw("serverPush", "Rappels fiables (serveur)", serverLive ? "Actifs : tu les reçois même appli fermée ✅" : "Reçois-les même appli fermée") : ""}
       <div class="row2"><span><b>Tester</b><small>Envoie une notification maintenant</small></span><button class="btn ghost" id="ntest">Envoyer un test</button></div>` : "";
   return `<div class="group"><h2>Notifications</h2><div class="card rows">
       <label class="row2"><span><b>Autoriser les notifications</b><small>${state}</small></span><span class="switch"><input type="checkbox" data-sk="notif" ${on ? "checked" : ""} ${perm === "unsupported" ? "disabled" : ""}><i></i></span></label>${rows}</div>
     ${help ? `<p class="hint" style="margin:.6rem .3rem 0">${help}</p>` : ""}
-    ${on ? `<p class="hint" style="margin:.6rem .3rem 0">Les rappels partent à l'heure choisie quand Élan est ouvert ou tourne en arrière-plan. Sur Chrome (appli installée), ils peuvent aussi arriver appli fermée, selon l'économie d'énergie de ton téléphone.</p>` : ""}</div>`;
+    ${on ? `<p class="hint" style="margin:.6rem .3rem 0">${serverLive ? "Les rappels sont envoyés par le serveur à l'heure choisie, même si Élan est fermé. La revue du dimanche arrive le dernier jour de la semaine." : "Les rappels partent à l'heure choisie quand Élan est ouvert ou tourne en arrière-plan. Sur Chrome (appli installée), ils peuvent aussi arriver appli fermée, selon l'économie d'énergie du téléphone."}</p>` : ""}</div>`;
+}
+
+// Sauvegarde automatique dans un fichier : seulement Chrome / Edge sur ordinateur.
+function fileCard() {
+  if (!fileSupported()) return "";
+  const p = fileInfo.perm;
+  return `<div class="card set"><b>Sauvegarde automatique dans un fichier</b>
+    <p>Choisis un fichier (par exemple dans ton cloud ou ton dossier Documents) : Élan le met à jour à chaque changement.${p === "granted" && fileInfo.last ? ` Dernière écriture : ${esc(new Date(fileInfo.last).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }))}.` : ""}</p>
+    <div class="row">${fileHandle ? (p === "granted" ? `<button class="btn ghost" id="fileoff">Arrêter</button>` : `<button class="btn" id="reconnectfile">Reconnecter le fichier</button><button class="btn ghost" id="fileoff">Arrêter</button>`) : `<button class="btn ghost" id="pickfile">Choisir le fichier…</button>`}</div></div>`;
+}
+// Synchronisation chiffrée entre appareils (nécessite le serveur Cloudflare).
+function syncCard() {
+  if (!srv.ok) return "";
+  if (S.sync) return `<div class="card set"><b>Synchronisation entre appareils</b>
+    <p>Saisis ce code sur ton autre appareil (Paramètres → « J'ai déjà un code ») pour retrouver tes habitudes. <b>Garde-le secret</b> : il sert aussi de clé de chiffrement, personne ne peut lire tes données sans lui, pas même le serveur.</p>
+    <div class="code" aria-label="Code de synchronisation">${esc(S.sync)}</div>
+    <div class="row"><button class="btn ghost" id="synccopy">Copier</button><button class="btn ghost" id="syncnow">Synchroniser</button><button class="btn danger" id="syncdelete">Arrêter</button></div></div>`;
+  return `<div class="card set"><b>Synchronisation entre appareils</b>
+    <p>Retrouve tes habitudes sur ton téléphone et ton ordinateur. Tes données sont chiffrées sur l'appareil avant l'envoi : le serveur ne peut pas les lire.</p>
+    <div class="row"><button class="btn" id="synccreate">Activer la synchronisation</button></div>
+    <p style="margin:1rem 0 .4rem">J'ai déjà un code :</p>
+    <div class="row"><input type="text" id="synccode" class="txtin" style="max-width:15rem" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" aria-label="Code de synchronisation"><button class="btn ghost" id="syncjoin">Relier</button></div></div>`;
 }
 
 function viewSettings() {
@@ -461,7 +582,8 @@ function viewSettings() {
       <div class="row2"><span><b>La semaine commence le</b></span>${seg("ws", [["mon", "Lundi"], ["sun", "Dimanche"]])}</div>
       ${sw("doneLast", "Terminées en bas de liste", "Les habitudes faites descendent")}
       ${sw("streaks", "Afficher les séries 🔥", "Jours d'affilée sous chaque habitude")}
-      ${sw("quote", "Citation du jour", "Un petit mot d'encouragement")}</div></div>
+      ${sw("quote", "Citation du jour", "Un petit mot d'encouragement")}
+      ${sw("joker", "Joker hebdomadaire 🃏", "Un jour de repos par semaine sans casser ta série")}</div></div>
 
     <div class="group"><h2>Retours</h2><div class="card rows">
       ${sw("confetti", "Confettis 🎉", "Quand la journée est à 100 %")}
@@ -471,9 +593,10 @@ function viewSettings() {
     ${notifGroup()}
 
     <div class="group"><h2>Données</h2>
-      <div class="card set"><b>Sauvegarde</b><p>Tes données sont uniquement sur cet appareil. Exporte-les pour les garder en sécurité ou les passer sur un autre appareil.</p>
+      <div class="card set"><b>Sauvegarde</b><p>Tes données sont sur cet appareil. Exporte-les pour les garder en sécurité ou les passer sur un autre appareil.${S.backup ? ` Dernière sauvegarde : ${esc(new Date(S.backup).toLocaleDateString("fr-FR", { day: "numeric", month: "long" }))}.` : ""}</p>
         <div class="row"><button class="btn ghost" id="export">Exporter (fichier)</button><button class="btn ghost" id="import">Importer…</button></div>
         <input type="file" id="file" accept="application/json,.json" hidden></div>
+      ${fileCard()}${syncCard()}
       ${arch.length ? `<div class="card set"><b>Habitudes archivées</b><p>Elles n'apparaissent plus mais gardent leur historique.</p>${arch.map(h => `<div class="row" style="align-items:center;margin-bottom:.4rem"><span>${esc(h.emoji)}</span><span style="flex:1">${esc(h.name)}</span><button class="btn ghost" data-restore="${h.id}">Restaurer</button></div>`).join("")}</div>` : ""}
       <div class="card set"><b>Zone sensible</b><p>Effacer supprime toutes les habitudes et tout l'historique de cet appareil (tes paramètres sont gardés). Action définitive.</p>
         <div class="row"><button class="btn danger" id="wipe">Tout effacer</button><button class="btn ghost" id="resetset">Réinitialiser les paramètres</button></div></div></div>
@@ -516,6 +639,7 @@ dlg.addEventListener("click", e => {
   if (e.target === dlg) { dlg.close(); return; }                     // clic sur le fond
   const b = e.target.closest("button"); if (!b) return;
   const keep = () => { const n = dlg.querySelector("#fname"); if (!n) return; form.name = n.value; form.gt = dlg.querySelector("#gt").value; form.gu = dlg.querySelector("#gu").value; };
+  if (b.dataset.addroutine) { addRoutine(b.dataset.addroutine); return; }
   if (b.dataset.ex !== undefined) {
     const [emoji, name, target, unit, cat] = SUGGEST[+b.dataset.ex];
     Object.assign(form, { name, emoji, cat, gt: target ? String(target) : "", gu: unit }); drawForm();
@@ -556,6 +680,30 @@ dlg.addEventListener("submit", e => {
   save(); dlg.close(); render();
 });
 
+/* ---------- routines ---------- */
+function openRoutines() {
+  dlg.innerHTML = `<form method="dialog" style="display:grid;gap:.8rem;padding:1.2rem">
+    <h3 style="margin:0">📦 Routines en un clic</h3>
+    <p style="margin:0;color:var(--muted);font-size:.92rem">Ajoute plusieurs habitudes d'un coup. Tu pourras ensuite les modifier ou en supprimer.</p>
+    ${ROUTINES.map(r => `<div class="card routine"><div class="rt-h"><span class="rt-e">${r.emoji}</span><span><b>${esc(r.name)}</b><small>${esc(r.desc)}</small></span>
+        <button type="button" class="btn" data-addroutine="${r.id}">Ajouter</button></div>
+        <p class="hint" style="margin:.5rem 0 0">${r.items.map(i => esc(i[0] + " " + i[1])).join(" · ")}</p></div>`).join("")}
+    <button type="button" class="btn ghost" id="cancel">Fermer</button></form>`;
+  dlg.showModal();
+}
+function addRoutine(id) {
+  const r = ROUTINES.find(x => x.id === id); if (!r) return;
+  const have = new Set(S.habits.map(h => h.name.toLowerCase()));
+  let n = 0;
+  for (const [emoji, name, target, unit, cat] of r.items) {
+    if (have.has(name.toLowerCase())) continue;
+    S.habits.push({ id: uid(), name, emoji, cat, color: COLORS[S.habits.length % COLORS.length], days: [0,1,2,3,4,5,6], created: todayKey(), archived: false, goal: target ? { target, unit } : null });
+    n++;
+  }
+  save(); dlg.close(); tab = "today"; render();
+  toast(n ? `${n} habitude${n > 1 ? "s" : ""} ajoutée${n > 1 ? "s" : ""} ✨` : "Tu as déjà toutes ces habitudes.");
+}
+
 /* ---------- événements ---------- */
 function setSetting(k, v) { S.settings[k] = v; applySettings(); save(); render(); }
 
@@ -577,6 +725,10 @@ $("#app").addEventListener("click", e => {
   else if (d.day) { sel = d.day; render(); }
   else if (d.week) { const t = todayKey(), n = addDays(sel, +d.week === -1 ? -7 : 7); sel = n > t ? t : n; render(); }
   else if (d.radar) { radarDays = +d.radar; render(); }
+  else if (d.rv) { reviewOff = +d.rv; render(); }
+  else if ("joker" in d) { if (!toggleJoker(sel)) toast("Un seul joker par semaine."); else if (isJoker(sel)) toast("Joker utilisé : ta série est protégée 🃏"); render(); }
+  else if ("review" in d) { tab = "stats"; reviewOff = 0; render(); const r = $("#review"); if (r) r.scrollIntoView({ behavior: "smooth", block: "start" }); }
+  else if ("routines" in d) openRoutines();
   else if ("new" in d) openForm();
   else if (d.sug !== undefined) {
     const [emoji, name, target, unit, cat] = SUGGEST[+d.sug];
@@ -584,17 +736,22 @@ $("#app").addEventListener("click", e => {
     save(); render();
   }
   else if (d.restore) { S.habits.find(h => h.id === d.restore).archived = false; save(); render(); }
-  else if (b.id === "export") {
-    const blob = new Blob([JSON.stringify({ app: "elan", version: 2, ...S }, null, 1)], { type: "application/json" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `elan-${todayKey()}.json`;
-    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  }
+  else if (b.id === "export" || "export" in d) { exportData(); toast("Sauvegarde téléchargée 💾"); render(); }
+  else if ("snooze" in d) { S.snooze = Date.now() + 7 * 864e5; save(true); render(); }
   else if (b.id === "import") $("#file").click();
   else if (b.id === "wipe") {
-    if (confirm("Tout effacer définitivement ? Pense à exporter avant.")) { S.habits = []; S.log = {}; S.prog = {}; shown = 0; save(); tab = "today"; toast("Données effacées."); render(); }
+    if (confirm("Tout effacer définitivement ? Pense à exporter avant.")) { S.habits = []; S.log = {}; S.prog = {}; S.jokers = []; shown = 0; save(); tab = "today"; toast("Données effacées."); render(); }
   }
   else if (b.id === "resetset") { S.settings = clean({}).settings; applySettings(); save(); toast("Paramètres réinitialisés."); render(); }
-  else if (b.id === "ntest") notify("Ça marche ! 🔔", "Voilà à quoi ressembleront tes rappels Élan.", "elan-test");
+  else if (b.id === "ntest") testNotif();
+  else if (b.id === "pickfile") pickFile();
+  else if (b.id === "reconnectfile") reconnectFile();
+  else if (b.id === "fileoff") fileOff();
+  else if (b.id === "synccreate") syncCreate();
+  else if (b.id === "syncjoin") syncJoin($("#synccode").value);
+  else if (b.id === "syncnow") { syncPull().then(r => { toast(r === "error" ? "Synchro impossible pour l'instant." : "Synchronisé ✅"); render(); }); }
+  else if (b.id === "syncdelete") syncDelete();
+  else if (b.id === "synccopy") { navigator.clipboard && navigator.clipboard.writeText(S.sync).then(() => toast("Code copié 📋"), () => toast("Copie impossible : note le code à la main.")); }
   else if (b.id === "dl") download();
 });
 // Jauge et paramètres : mise à jour en direct pendant le glissement ou la saisie.
@@ -616,7 +773,8 @@ $("#app").addEventListener("change", e => {
     else if (/^([01]\d|2[0-3]):[0-5]\d$/.test(el.value)) { r.t = el.value; idbSet("fired", { date: todayKey(), ids: [] }).catch(() => {}); save(); }
     return;
   }
-  if (el.dataset.sk === "notif") { if (el.checked) enableNotifs(); else setSetting("notif", false); return; }
+  if (el.dataset.sk === "notif") { if (el.checked) enableNotifs(); else { S.settings.notif = false; save(); pushOff().then(render); } return; }
+  if (el.dataset.sk === "serverPush") { S.settings.serverPush = el.checked; save(); (el.checked ? pushNow() : pushOff()).then(render); return; }
   if (el.type === "checkbox" && el.dataset.sk) { setSetting(el.dataset.sk, el.checked); return; }
   if (el.id !== "file" || !el.files[0]) return;
   const f = el.files[0];
@@ -625,16 +783,18 @@ $("#app").addEventListener("change", e => {
     const n = clean(JSON.parse(txt));
     if (!n.habits.length) throw new Error("vide");
     if (!confirm(`Importer ${n.habits.length} habitude(s) ? Elles remplaceront les données actuelles.`)) return;
+    n.sync = S.sync; n.settings.notif = S.settings.notif; n.settings.rem = S.settings.rem;     // ce qui est propre à cet appareil est conservé
     S = n; applySettings(); save(); tab = "today"; toast("Import réussi."); render();
   }).catch(() => toast("Fichier invalide."));
 });
 
 /* ---------- notifications ----------
-   Rappels programmés à l'heure choisie. Ils partent quand Élan est ouvert (même en arrière-plan) et, sur les
-   navigateurs qui le permettent (Chrome installé), via la synchro périodique du service worker. Aucun serveur. */
+   Deux modes : rappels « locaux » (partent quand Élan est ouvert, ou via la synchro périodique de Chrome) et rappels
+   « fiables » envoyés par un petit serveur Cloudflare (même appli fermée), disponibles quand le site est hébergé avec ce serveur. */
 const notifSupported = () => "Notification" in window && "serviceWorker" in navigator;
 const notifPerm = () => "Notification" in window ? Notification.permission : "unsupported";
 const notifOn = () => S.settings.notif && notifPerm() === "granted";
+const REM_TITLES = ["Bonjour ☀️", "Petit point 🌿", "Bilan du soir 🌙", "Ta revue de la semaine 📋"];
 
 // Petite base IndexedDB partagée avec le service worker (qui n'a pas accès à localStorage).
 const idb = (mode, fn) => new Promise((res, rej) => {
@@ -646,19 +806,30 @@ const idb = (mode, fn) => new Promise((res, rej) => {
 const idbGet = k => idb("readonly", s => s.get(k));
 const idbSet = (k, v) => idb("readwrite", s => s.put(v, k));
 
+// Le dernier jour de la semaine (dimanche, ou samedi si la semaine commence le dimanche) : jour de la revue.
+const isReviewDay = t => t === addDays(wk(t), 6);
+
 function buildMsg(i) {
-  const t = todayKey(), all = forDay(t), left = all.filter(h => !done(h, t)), nm = S.settings.name, who = nm ? nm + ", " : "";
+  const t = todayKey(), all = forDay(t).filter(h => !skipped(h, t)), left = all.filter(h => !done(h, t)), nm = S.settings.name, who = nm ? nm + ", " : "";
+  if (i === 3) {
+    if (!isReviewDay(t)) return null;
+    const ws = weekStats(wk(t)); if (ws.score === null) return null;
+    return { title: REM_TITLES[3], body: `Score de la semaine : ${Math.round(ws.score)} %, ${ws.done} validation${ws.done > 1 ? "s" : ""}. Viens voir le détail !` };
+  }
   if (!all.length) return null;
   const list = left.slice(0, 4).map(h => h.name).join(", ") + (left.length > 4 ? "…" : ""), pl = left.length > 1 ? "s" : "";
   if (S.settings.onlyIfLeft && !left.length) return null;
   if (i === 0) return { title: `Bonjour${nm ? " " + nm : ""} ☀️`, body: `${all.length} habitude${all.length > 1 ? "s" : ""} t'attendent aujourd'hui : ${list}.` };
-  if (i === 1) return { title: "Petit point 🌿", body: left.length ? `${who}il te reste ${left.length} habitude${pl} : ${list}.` : "Tout est fait pour l'instant, bravo !" };
-  return { title: "Bilan du soir 🌙", body: left.length ? `${who}encore un effort, il reste ${left.length} habitude${pl} : ${list}.` : `Journée à ${Math.round(dayPct(t))} % : bravo ! 🎉` };
+  if (i === 1) return { title: REM_TITLES[1], body: left.length ? `${who}il te reste ${left.length} habitude${pl} : ${list}.` : "Tout est fait pour l'instant, bravo !" };
+  return { title: REM_TITLES[2], body: left.length ? `${who}encore un effort, il reste ${left.length} habitude${pl} : ${list}.` : `Journée à ${Math.round(dayPct(t))} % : bravo ! 🎉` };
 }
 // Copie des rappels pour le service worker.
 function mirror() {
   if (!window.indexedDB) return;
-  const st = { date: todayKey(), notif: notifOn(), rem: S.settings.rem.map((r, i) => { const m = buildMsg(i); return { on: r.on, t: r.t, skip: !m, title: m && m.title, body: m && m.body }; }) };
+  const st = {
+    date: todayKey(), notif: notifOn(), server: serverLive,
+    rem: S.settings.rem.map((r, i) => { const m = buildMsg(i); return { on: r.on, t: r.t, skip: !m, title: m && m.title, body: m && m.body, dow: i === 3 ? (S.settings.ws === "sun" ? 6 : 0) : -1 }; })
+  };
   idbSet("state", st).catch(() => {});
 }
 async function notify(title, body, tag) {
@@ -670,7 +841,7 @@ async function registerPeriodic() {
 }
 let checking = false;
 async function checkReminders() {
-  if (!notifOn() || checking) return;
+  if (!notifOn() || checking || serverLive) return;       // en mode serveur, c'est lui qui envoie
   checking = true;
   try {
     const now = new Date(), today = todayKey(), mins = now.getHours() * 60 + now.getMinutes();
@@ -692,12 +863,185 @@ async function enableNotifs() {
   if (p === "default") { try { p = await Notification.requestPermission(); } catch (_) {} }
   if (p === "granted") {
     S.settings.notif = true; save(); registerPeriodic();
-    notify("Notifications activées ✅", "Tu recevras tes rappels d'habitudes à l'heure choisie.", "elan-on"); toast("Notifications activées.");
+    await probeServer(); await pushNow();
+    notify("Notifications activées ✅", serverLive ? "Rappels fiables activés : tu les recevras même appli fermée." : "Tu recevras tes rappels d'habitudes à l'heure choisie.", "elan-on"); toast("Notifications activées.");
   } else {
     S.settings.notif = false; save();
     toast(p === "denied" ? "Notifications bloquées : autorise-les dans les réglages du navigateur." : "Autorisation refusée.");
   }
   render();
+}
+
+/* ---------- rappels fiables (serveur Cloudflare) ---------- */
+const api = async (path, body, method) => {
+  const r = await fetch("api/" + path, { method: method || "POST", headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body), cache: "no-store" });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(j.error || String(r.status)); e.status = r.status; throw e; }
+  return j;
+};
+const b64uBytes = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(s.length / 4) * 4, "=")), c => c.charCodeAt(0));
+let srv = { checked: false, ok: false, key: "" }, serverLive = false, pushTimer = 0;
+
+// Le serveur n'existe que si le site est hébergé avec le Worker Cloudflare : on le détecte.
+async function probeServer() {
+  try { const j = await api("push/key", undefined, "GET"); srv = { checked: true, ok: !!j.key, key: j.key || "" }; }
+  catch (_) { srv = { checked: true, ok: false, key: "" }; }
+  return srv;
+}
+async function ensureSub() {
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    try { sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(srv.key) }); }
+    catch (_) { const old = await reg.pushManager.getSubscription(); if (old) await old.unsubscribe(); sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(srv.key) }); }
+  }
+  return sub;
+}
+function pushItems() {
+  const out = [];
+  S.settings.rem.forEach((r, i) => {
+    if (!r.on) return;
+    const m = buildMsg(i), alt = i === 3 ? "Découvre ta revue de la semaine dans Élan." : "Prends un moment pour cocher tes habitudes du jour.";
+    out.push({ time: r.t, title: m ? m.title : REM_TITLES[i], body: m ? m.body : alt, alt, skip: !m, days: i === 3 ? [S.settings.ws === "sun" ? 6 : 0] : null });
+  });
+  return out;
+}
+// Envoie au serveur l'abonnement + les rappels (et les messages à jour). Appelé après chaque enregistrement, en différé.
+function pushSoon() { clearTimeout(pushTimer); if (srv.ok && notifOn() && S.settings.serverPush) pushTimer = setTimeout(pushNow, 2500); }
+async function pushNow() {
+  if (!srv.ok || !notifOn() || !S.settings.serverPush) { if (serverLive) { serverLive = false; mirror(); } return; }
+  try {
+    const sub = await ensureSub();
+    await api("push/save", { sub: sub.toJSON(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone, d: todayKey(), items: pushItems() });
+    if (!serverLive) { serverLive = true; mirror(); }
+  } catch (_) { if (serverLive) { serverLive = false; mirror(); } }
+}
+async function pushOff() {
+  clearTimeout(pushTimer); serverLive = false;
+  try { const reg = await navigator.serviceWorker.ready, sub = await reg.pushManager.getSubscription(); if (sub) { if (srv.ok) await api("push/remove", { endpoint: sub.endpoint }).catch(() => {}); await sub.unsubscribe(); } } catch (_) {}
+  mirror();
+}
+async function testNotif() {
+  if (serverLive) {
+    try { const sub = await ensureSub(); await api("push/test", { endpoint: sub.endpoint }); toast("Notification envoyée par le serveur ✅"); return; } catch (_) {}
+  }
+  notify("Ça marche ! 🔔", "Voilà à quoi ressembleront tes rappels Élan.", "elan-test");
+}
+
+/* ---------- sauvegarde ---------- */
+function exportData() {
+  const blob = new Blob([JSON.stringify({ app: "elan", version: 2, ...S, sync: "" }, null, 1)], { type: "application/json" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `elan-${todayKey()}.json`;
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  S.backup = Date.now(); save(true);
+}
+// Rappel de sauvegarde : si rien n'est copié ailleurs depuis 14 jours.
+function backupBanner() {
+  if (!S.habits.length || S.sync || fileInfo.perm === "granted") return "";
+  const first = S.habits.reduce((m, h) => h.created < m ? h.created : m, "9999-99-99"), ref = S.backup || parse(first).getTime(), now = Date.now();
+  if (now - ref < 14 * 864e5 || now < S.snooze) return "";
+  return `<div class="joker"><span>💾 <b>Pense à sauvegarder tes données</b> : elles ne sont que sur cet appareil.</span><span class="row" style="display:flex;gap:.4rem"><button class="btn ghost" data-export>Exporter</button><button class="btn ghost" data-snooze>Plus tard</button></span></div>`;
+}
+
+// Sauvegarde automatique dans un fichier (Chrome / Edge sur ordinateur).
+const fileSupported = () => "showSaveFilePicker" in window;
+let fileHandle = null, fileTimer = 0, fileInfo = { perm: "none", last: 0 };
+async function fileInit() {
+  if (!fileSupported()) return;
+  try { fileHandle = await idbGet("fileHandle") || null; if (fileHandle) fileInfo.perm = await fileHandle.queryPermission({ mode: "readwrite" }); } catch (_) {}
+  if (fileInfo.perm === "granted") fileSoon();
+}
+async function pickFile() {
+  try {
+    const h = await showSaveFilePicker({ suggestedName: "elan-sauvegarde.json", types: [{ description: "Sauvegarde Élan", accept: { "application/json": [".json"] } }] });
+    fileHandle = h; fileInfo.perm = "granted"; await idbSet("fileHandle", h).catch(() => {}); await fileWrite(); toast("Sauvegarde automatique activée.");
+  } catch (e) { if (e && e.name !== "AbortError") toast("Impossible d'utiliser ce fichier."); }
+  render();
+}
+async function reconnectFile() {
+  try { fileInfo.perm = await fileHandle.requestPermission({ mode: "readwrite" }); if (fileInfo.perm === "granted") await fileWrite(); } catch (_) {}
+  render();
+}
+async function fileWrite() {
+  if (!fileHandle || fileInfo.perm !== "granted") return;
+  try {
+    const w = await fileHandle.createWritable();
+    await w.write(JSON.stringify({ app: "elan", version: 2, ...S, sync: "" }, null, 1)); await w.close();
+    fileInfo.last = Date.now(); S.backup = fileInfo.last; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (_) {}
+  } catch (_) { fileInfo.perm = "prompt"; }
+}
+function fileSoon() { clearTimeout(fileTimer); if (fileHandle && fileInfo.perm === "granted") fileTimer = setTimeout(fileWrite, 2000); }
+async function fileOff() { fileHandle = null; fileInfo.perm = "none"; clearTimeout(fileTimer); await idbSet("fileHandle", null).catch(() => {}); render(); }
+
+/* ---------- synchronisation entre appareils (chiffrée de bout en bout) ----------
+   Un code secret est généré sur l'appareil. Il ne quitte jamais l'appareil : le serveur ne voit qu'un identifiant dérivé
+   du code et des données chiffrées. Pour relier un autre appareil, on y saisit le même code. */
+const SYNC_ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const newSyncCode = () => [...crypto.getRandomValues(new Uint8Array(20))].map(x => SYNC_ALPHA[x & 31]).join("").match(/.{4}/g).join("-");
+const syncOk = () => srv.ok && !!S.sync;
+let syncTimer = 0, syncBusy = false, syncLast = 0;
+const b64 = u8 => btoa(String.fromCharCode(...u8));
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function syncKeys(code) {
+  const norm = code.replace(/-/g, ""), te = new TextEncoder();
+  const sha = async s => new Uint8Array(await crypto.subtle.digest("SHA-256", te.encode(s)));
+  const id = [...(await sha("elan-id:" + norm)).slice(0, 16)].map(b => b.toString(16).padStart(2, "0")).join("");
+  return { id, key: await crypto.subtle.importKey("raw", await sha("elan-key:" + norm), "AES-GCM", false, ["encrypt", "decrypt"]) };
+}
+async function seal(key, obj) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(obj))));
+  const out = new Uint8Array(12 + ct.length); out.set(iv); out.set(ct, 12); return b64(out);
+}
+async function unseal(key, str) {
+  const raw = unb64(str);
+  return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: raw.slice(0, 12) }, key, raw.slice(12))));
+}
+const syncData = () => ({ habits: S.habits, log: S.log, prog: S.prog, jokers: S.jokers, name: S.settings.name });
+async function syncPush() {
+  if (!syncOk()) return;
+  const { id, key } = await syncKeys(S.sync);
+  await api("sync/" + id, { t: S.updated, d: await seal(key, syncData()) }, "PUT");
+  syncLast = Date.now();
+}
+function syncSoon() { clearTimeout(syncTimer); if (syncOk()) syncTimer = setTimeout(() => syncPush().catch(() => {}), 4000); }
+// Récupère la version du serveur si elle est plus récente ; sinon envoie la nôtre. force = remplacer sans comparer.
+async function syncPull(force) {
+  if (!syncOk() || syncBusy) return "off";
+  syncBusy = true;
+  try {
+    const { id, key } = await syncKeys(S.sync);
+    let j; try { j = await api("sync/" + id, undefined, "GET"); } catch (e) { if (e.status === 404) return "none"; throw e; }
+    if (force || j.t > S.updated) {
+      const remote = await unseal(key, j.d);
+      const n = clean({ ...remote, settings: { ...S.settings, name: remote.name || S.settings.name }, sync: S.sync, backup: S.backup, snooze: S.snooze });
+      S.habits = n.habits; S.log = n.log; S.prog = n.prog; S.jokers = n.jokers; S.settings.name = n.settings.name; S.updated = j.t;
+      save(true); syncLast = Date.now(); render(); return "pulled";
+    }
+    if (j.t < S.updated) { syncBusy = false; await syncPush(); return "pushed"; }
+    syncLast = Date.now(); return "same";
+  } catch (_) { return "error"; } finally { syncBusy = false; }
+}
+async function syncCreate() {
+  S.sync = newSyncCode(); save(true);
+  try { await syncPush(); toast("Synchronisation activée. Note bien ton code !"); } catch (_) { S.sync = ""; save(true); toast("Le serveur n'a pas répondu, réessaie."); }
+  render();
+}
+async function syncJoin(code) {
+  const c = code.toUpperCase().replace(/[^A-Z2-9]/g, "").match(/.{1,4}/g);
+  const norm = c ? c.join("-") : "";
+  if (!/^[A-Z2-9]{4}(-[A-Z2-9]{4}){4}$/.test(norm)) { toast("Code invalide (20 caractères, par groupes de 4)."); return; }
+  if (S.habits.length && !confirm("Les habitudes de cet appareil seront remplacées par celles du code saisi. Continuer ?")) return;
+  const prev = S.sync; S.sync = norm;
+  const r = await syncPull(true);
+  if (r === "pulled") toast("Appareil relié : données récupérées ✅");
+  else { S.sync = prev; save(true); toast(r === "none" ? "Code introuvable." : "Connexion impossible, réessaie."); }
+  render();
+}
+async function syncDelete() {
+  if (!S.sync || !confirm("Supprimer la copie en ligne et arrêter la synchronisation ? Tes données restent sur cet appareil.")) return;
+  try { const { id } = await syncKeys(S.sync); await api("sync/" + id, undefined, "DELETE"); } catch (_) {}
+  S.sync = ""; save(true); toast("Copie en ligne supprimée."); render();
 }
 
 /* ---------- divers ---------- */
@@ -730,12 +1074,24 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden) return;
   const t = todayKey();
   if (t !== lastDay) { if (sel === lastDay) sel = t; lastDay = t; render(); }
-  mirror(); checkReminders();
+  mirror(); checkReminders(); pushSoon();
+  if (syncOk()) syncPull();
 });
 setInterval(checkReminders, 30000);
+setInterval(() => { if (!document.hidden && syncOk()) syncPull(); }, 120000);
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applySettings);
 
 if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
 applySettings();
 render();
 mirror(); checkReminders(); if (notifOn()) registerPeriodic();
+// Demande au navigateur de ne pas effacer les données automatiquement.
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (_) {}
+fileInit().then(() => { if (tab === "settings") render(); });
+// Serveur Cloudflare (s'il existe) : rappels fiables et synchronisation.
+probeServer().then(async () => {
+  if (!srv.ok) { if (tab === "settings") render(); return; }
+  if (S.sync) await syncPull();
+  await pushNow();
+  if (tab === "settings") render();
+});
