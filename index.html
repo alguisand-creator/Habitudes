@@ -3,15 +3,28 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Élan – Suivi d'habitudes gratuit, séries et jauges</title>
+<title>Élan : application gratuite de suivi d'habitudes (habit tracker) – séries, défis, badges</title>
 <link rel="canonical" href="https://elan.alguisand.workers.dev/">
 <meta name="tiktok-developers-site-verification" content="uYD6DICQsqp8LaT0EMX2KWdw7gm6Qw8D">
 <meta name="google-site-verification" content="zIcCpNnr83XRWX4ZZ8O4Bn5eEjX8Yakip1Rc62aNTd0" />
-<meta name="description" content="Élan : suis tes habitudes jour après jour avec des jauges, des séries, un graphique d'équilibre et des badges. Gratuit, sans compte, hors ligne : tes données restent sur ton appareil.">
-<meta property="og:title" content="Élan – Suivi d'habitudes gratuit">
-<meta property="og:description" content="Jauges de 0 à 100 %, séries, graphique d'équilibre et badges. Gratuit, sans compte, hors ligne.">
+<meta name="description" content="Élan, l'application gratuite de suivi d'habitudes et de routines : jauges 0-100 %, séries, défis 7/21/30 jours, badges, statistiques et rappels. Sans compte, sans pub, hors ligne, sur Android, iPhone et ordinateur.">
+<meta name="keywords" content="suivi d'habitudes, habit tracker, application habitudes gratuite, tracker d'habitudes, suivi de routine, application routine, créer de bonnes habitudes, défi 30 jours, série de jours, streak, motivation, productivité, to-do habitudes, appli gratuite sans compte">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="application-name" content="Élan">
+<meta property="og:site_name" content="Élan">
+<meta property="og:title" content="Élan : application gratuite de suivi d'habitudes">
+<meta property="og:description" content="Jauges de 0 à 100 %, séries, défis de 30 jours, badges et graphique d'équilibre. Gratuit, sans compte, hors ligne.">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://elan.alguisand.workers.dev/">
 <meta property="og:locale" content="fr_FR">
+<meta property="og:image" content="https://elan.alguisand.workers.dev/icons/og-image.png">
+<meta property="og:image:width" content="1920">
+<meta property="og:image:height" content="1080">
+<meta property="og:image:alt" content="Élan : l'application gratuite de suivi d'habitudes, avec jauges, séries et badges">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Élan : application gratuite de suivi d'habitudes">
+<meta name="twitter:description" content="Jauges, séries, défis de 30 jours, badges et statistiques. Gratuit, sans compte.">
+<meta name="twitter:image" content="https://elan.alguisand.workers.dev/icons/og-image.png">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#f3f6f8" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0f161c" media="(prefers-color-scheme: dark)">
@@ -21,9 +34,43 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Élan">
 <link rel="stylesheet" href="style.css">
+<script type="application/ld+json">[
+{"@context":"https://schema.org","@type":"WebApplication","name":"Élan","alternateName":["Élan suivi d'habitudes","Élan habit tracker"],"url":"https://elan.alguisand.workers.dev/","description":"Application gratuite de suivi d'habitudes et de routines : jauges de progression, séries de jours, défis de 7, 21 et 30 jours, badges, statistiques, rappels et synchronisation. Sans compte, hors ligne.","applicationCategory":"HealthApplication","applicationSubCategory":"Habit tracker","operatingSystem":"Android, iOS, Windows, macOS, Linux (navigateur)","browserRequirements":"Requires JavaScript","inLanguage":"fr-FR","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"EUR"},"image":"https://elan.alguisand.workers.dev/icons/og-image.png","featureList":["Suivi d'habitudes quotidien","Jauges de progression de 0 à 100 %","Séries de jours consécutifs (streak)","Défis de 7, 21 et 30 jours","Joker hebdomadaire","Badges et niveaux","Graphique d'équilibre par catégorie","Revue de la semaine","Rappels et notifications","Synchronisation chiffrée entre appareils","Fonctionne hors ligne","Thème sombre et clair"]},
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[
+{"@type":"Question","name":"Élan est-elle vraiment gratuite ?","acceptedAnswer":{"@type":"Answer","text":"Oui. Élan est gratuite, sans abonnement, sans publicité et sans compte à créer."}},
+{"@type":"Question","name":"Faut-il créer un compte pour suivre ses habitudes ?","acceptedAnswer":{"@type":"Answer","text":"Non. Tes habitudes sont enregistrées sur ton appareil. Si tu le souhaites, tu peux activer une synchronisation chiffrée entre plusieurs appareils avec un simple code."}},
+{"@type":"Question","name":"Élan fonctionne-t-elle sans internet ?","acceptedAnswer":{"@type":"Answer","text":"Oui. Une fois installée, l'application fonctionne hors ligne."}},
+{"@type":"Question","name":"Comment installer Élan sur iPhone ou Android ?","acceptedAnswer":{"@type":"Answer","text":"Sur Android, ouvre Élan dans Chrome puis choisis Installer l'application. Sur iPhone, ouvre Élan dans Safari, appuie sur Partager puis Sur l'écran d'accueil."}},
+{"@type":"Question","name":"Comment fonctionne une série (streak) et le joker ?","acceptedAnswer":{"@type":"Answer","text":"Une série compte les jours consécutifs où tu valides une habitude. Une fois par semaine, tu peux utiliser un joker pour sauter un jour sans casser ta série."}},
+{"@type":"Question","name":"Qu'est-ce qu'un défi de 30 jours dans Élan ?","acceptedAnswer":{"@type":"Answer","text":"Tu choisis une habitude et un défi de 7, 21 ou 30 jours. Chaque jour validé fait avancer une barre de progression, et un badge te récompense à la fin."}}
+]}
+]</script>
 </head>
 <body>
 <div class="app" id="app"></div>
+<noscript><section class="about"><h1>Élan : application gratuite de suivi d'habitudes</h1><p>Élan est un habit tracker gratuit : jauges de progression, séries, défis de 30 jours, badges et statistiques. Active JavaScript pour l'utiliser.</p></section></noscript>
+
+<section class="about" id="a-propos" aria-label="À propos d'Élan">
+  <h2>Élan : l'application gratuite de suivi d'habitudes</h2>
+  <p>Élan est un <strong>habit tracker gratuit</strong> pour suivre tes habitudes et construire une routine jour après jour. Pas de compte, pas de publicité : l'application s'installe sur <strong>Android, iPhone et ordinateur</strong>, fonctionne <strong>hors ligne</strong> et garde tes données sur ton appareil.</p>
+  <ul>
+    <li><strong>Suivi d'habitudes quotidien</strong> : coche tes habitudes ou règle une jauge de 0 à 100 % (marcher 10 km, boire 2 L d'eau, lire 30 pages, méditer 15 minutes…).</li>
+    <li><strong>Séries (streak)</strong> et <strong>joker hebdomadaire</strong> pour garder le rythme sans se décourager.</li>
+    <li><strong>Défis de 7, 21 et 30 jours</strong>, <strong>badges</strong> et <strong>niveaux</strong> pour rester motivé.</li>
+    <li><strong>Statistiques</strong> : graphique d'équilibre (sport, mindset, nutrition, sommeil, travail, relations), calendrier des 12 dernières semaines, revue de la semaine.</li>
+    <li><strong>Rappels et notifications</strong> matin, après-midi et soir, et <strong>synchronisation chiffrée</strong> entre téléphone et ordinateur.</li>
+    <li><strong>Routines prêtes à l'emploi</strong> : routine du matin, étudiant, sportif, bien-être, productivité.</li>
+  </ul>
+  <h2>Questions fréquentes sur Élan</h2>
+  <details><summary>Élan est-elle vraiment gratuite ?</summary><p>Oui. Élan est gratuite, sans abonnement, sans publicité et sans compte à créer.</p></details>
+  <details><summary>Faut-il créer un compte pour suivre ses habitudes ?</summary><p>Non. Tes habitudes sont enregistrées sur ton appareil. Tu peux activer une synchronisation chiffrée entre plusieurs appareils avec un simple code.</p></details>
+  <details><summary>Élan fonctionne-t-elle sans internet ?</summary><p>Oui. Une fois installée, l'application fonctionne hors ligne.</p></details>
+  <details><summary>Comment installer Élan sur iPhone ou Android ?</summary><p>Sur Android, ouvre Élan dans Chrome puis choisis « Installer l'application ». Sur iPhone, ouvre Élan dans Safari, appuie sur Partager puis « Sur l'écran d'accueil ».</p></details>
+  <details><summary>Comment fonctionne une série (streak) et le joker ?</summary><p>Une série compte les jours consécutifs où tu valides une habitude. Une fois par semaine, tu peux utiliser un joker pour sauter un jour sans casser ta série.</p></details>
+  <details><summary>Qu'est-ce qu'un défi de 30 jours ?</summary><p>Tu choisis une habitude et un défi de 7, 21 ou 30 jours. Chaque jour validé fait avancer une barre de progression, et un badge te récompense à la fin.</p></details>
+  <p class="about-links"><a href="confidentialite.html">Confidentialité</a> · <a href="conditions.html">Conditions d'utilisation</a> · <a href="https://toolbox.alguisand.workers.dev/">ToolBOX, les petits outils du quotidien</a></p>
+</section>
+
 <button class="fab" id="fab" aria-label="Ajouter une habitude">+</button>
 <nav class="tabs" aria-label="Navigation"><div>
   <button data-tab="today"><span>✅</span>Aujourd'hui</button>
