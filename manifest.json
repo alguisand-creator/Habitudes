@@ -1,0 +1,19 @@
+{
+  "name": "Habitudes – suivi d'habitudes gratuit",
+  "short_name": "Habitudes",
+  "description": "Suis tes habitudes jour après jour : séries, statistiques et calendrier. Gratuit, sans compte, hors ligne.",
+  "id": "./",
+  "start_url": "./?source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "lang": "fr",
+  "background_color": "#11181f",
+  "theme_color": "#2f9e6e",
+  "categories": ["health", "lifestyle", "productivity"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
