@@ -1250,22 +1250,27 @@ probeServer().then(async () => {
   if (tab === "settings") render();
 });
 
-// Mesure anonyme, sans cookie ni identifiant : une visite venue d'un lien repéré (?src=tiktok)
-// et la première ouverture de l'appli installée. Désactivée si le navigateur envoie « Ne pas me suivre ».
+// Mesure anonyme, sans cookie ni identifiant : au plus une visite par appareil et par jour (source = repère du lien,
+// par exemple ?src=tiktok, sinon « direct »), et la première ouverture de l'appli installée.
+// Désactivée si le navigateur envoie « Ne pas me suivre ».
 (function stats() {
   try {
     if (navigator.doNotTrack === "1") return;
+    const get = k => { try { return localStorage.getItem(k) || ""; } catch (_) { return ""; } };
+    const set = (k, v) => { try { localStorage.setItem(k, v); } catch (_) {} };
     const send = body => fetch("/api/stat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), keepalive: true }).catch(() => {});
-    const p = new URLSearchParams(location.search), src = (p.get("src") || "").toLowerCase();
+    const p = new URLSearchParams(location.search);
+    const src = (p.get("src") || "").toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 20);
+    const today = new Date().toISOString().slice(0, 10);
     if (src) {
-      send({ e: "visit", src });
-      p.delete("src");   // on retire le repère de l'adresse : un rechargement ne recompte pas
+      if (!get("elan-src")) set("elan-src", src);   // première source connue, pour attribuer une installation éventuelle
+      p.delete("src");                               // on retire le repère de l'adresse : un rechargement ne recompte pas
       history.replaceState(null, "", location.pathname + (p.toString() ? "?" + p : "") + location.hash);
     }
-    const counted = () => { try { return localStorage.getItem("elan-compte") === "1"; } catch (_) { return true; } };
-    const mark = () => { try { localStorage.setItem("elan-compte", "1"); } catch (_) {} };
+    if (src || get("elan-vu") !== today) { send({ e: "visit", src: src || "direct" }); set("elan-vu", today); }
     const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-    if (standalone && !counted()) { send({ e: "install" }); mark(); }
-    addEventListener("appinstalled", () => { if (!counted()) { send({ e: "install" }); mark(); } });
+    const countInstall = () => { if (get("elan-compte") === "1") return; send({ e: "install", src: get("elan-src") }); set("elan-compte", "1"); };
+    if (standalone) countInstall();
+    addEventListener("appinstalled", countInstall);
   } catch (_) {}
 })();

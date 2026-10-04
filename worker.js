@@ -274,14 +274,18 @@ const STAT_MAX_DAY = 800;   // plafond d'événements par jour (protège le quot
 async function handleStat(request, env, url) {
   if (!env.ELAN) return json({ error: "Indisponible" }, 503);
   if (request.method === "GET") {
-    const out = { jours: {}, total: { installations: 0, visites: {} } };
+    // jours : { "2026-10-04": { visites: { tiktok: 3, direct: 5 }, installations: { tiktok: 1, inconnue: 1 } } }
+    const out = { jours: {}, total: { visites: {}, installations: {} } };
     for (let i = 0; i < 30; i++) {
       const day = new Date(Date.now() - i * 864e5).toISOString().slice(0, 10);
       const rec = await env.ELAN.get("stat:" + day, "json");
       if (!rec) continue;
-      out.jours[day] = { installations: rec.install || 0, visites: rec.src || {} };
-      out.total.installations += rec.install || 0;
+      const inst = Object.assign({}, rec.inst || {});
+      const known = Object.values(inst).reduce((a, b) => a + b, 0);
+      if ((rec.install || 0) > known) inst.inconnue = (inst.inconnue || 0) + (rec.install - known);   // anciens comptages sans source
+      out.jours[day] = { visites: rec.src || {}, installations: inst };
       for (const [s, n] of Object.entries(rec.src || {})) out.total.visites[s] = (out.total.visites[s] || 0) + n;
+      for (const [s, n] of Object.entries(inst)) out.total.installations[s] = (out.total.installations[s] || 0) + n;
     }
     return json(out);
   }
@@ -296,10 +300,12 @@ async function handleStat(request, env, url) {
   if (!/^[a-z0-9_-]{1,20}$/.test(src)) src = "";
   if (e === "visit" && !src) return json({ ok: true });
   const key = "stat:" + new Date().toISOString().slice(0, 10);
-  const rec = (await env.ELAN.get(key, "json")) || { install: 0, src: {}, n: 0 };
+  const rec = (await env.ELAN.get(key, "json")) || { install: 0, src: {}, inst: {}, n: 0 };
   if (rec.n >= STAT_MAX_DAY) return json({ ok: true });
   rec.n++;
-  if (e === "install") rec.install++; else rec.src[src] = (rec.src[src] || 0) + 1;
+  if (!rec.inst) rec.inst = {};
+  if (e === "install") { rec.install++; const s = src || "inconnue"; rec.inst[s] = (rec.inst[s] || 0) + 1; }
+  else rec.src[src] = (rec.src[src] || 0) + 1;
   await env.ELAN.put(key, JSON.stringify(rec), { expirationTtl: 60 * 60 * 24 * 100 });
   return json({ ok: true });
 }
