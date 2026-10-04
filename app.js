@@ -40,7 +40,9 @@ const BADGES = [
   ["🎯","Journée parfaite","Tout à 100 % un jour", s => s.perfect >= 1], ["🧩","Collectionneur","5 habitudes", s => s.habits >= 5],
   ["🌈","Équilibré","3 catégories actives", s => s.cats >= 3]
 ];
-const DEFAULTS = { theme: "auto", accent: ACCENTS[0], fs: "m", anim: true, ws: "mon", doneLast: false, streaks: true, quote: true, vibrate: true, sound: false, confetti: true, name: "" };
+const DEFAULTS = { theme: "auto", accent: ACCENTS[0], fs: "m", anim: true, ws: "mon", doneLast: false, streaks: true, quote: true, vibrate: true, sound: false, confetti: true, name: "", notif: false, onlyIfLeft: true };
+const REM_NAMES = ["Rappel du matin", "Rappel de l'après-midi", "Rappel du soir"];
+const REM_DEFAULT = [{ on: true, t: "08:00" }, { on: false, t: "14:00" }, { on: true, t: "20:00" }];
 
 /* ---------- utilitaires ---------- */
 const $ = s => document.querySelector(s);
@@ -89,17 +91,18 @@ function clean(s) {
     for (const [i, p] of Object.entries(v)) if (ids.has(i) && Number.isFinite(p) && p > 0) o[i] = Math.min(100, Math.round(p));
     if (Object.keys(o).length) prog[k] = o;
   }
-  const st = { ...DEFAULTS }, r = s.settings && typeof s.settings === "object" ? s.settings : {};
+  const st = { ...DEFAULTS, rem: REM_DEFAULT.map(x => ({ ...x })) }, r = s.settings && typeof s.settings === "object" ? s.settings : {};
+  if (Array.isArray(r.rem) && r.rem.length === 3) st.rem = r.rem.map((x, i) => ({ on: typeof (x && x.on) === "boolean" ? x.on : REM_DEFAULT[i].on, t: /^([01]\d|2[0-3]):[0-5]\d$/.test((x && x.t) || "") ? x.t : REM_DEFAULT[i].t }));
   if (["auto", "light", "dark"].includes(r.theme)) st.theme = r.theme;
   if (/^#[0-9a-f]{6}$/i.test(r.accent || "")) st.accent = r.accent;
   if (["s", "m", "l"].includes(r.fs)) st.fs = r.fs;
   if (["mon", "sun"].includes(r.ws)) st.ws = r.ws;
-  for (const k of ["anim", "doneLast", "streaks", "quote", "vibrate", "sound", "confetti"]) if (typeof r[k] === "boolean") st[k] = r[k];
+  for (const k of ["anim", "doneLast", "streaks", "quote", "vibrate", "sound", "confetti", "notif", "onlyIfLeft"]) if (typeof r[k] === "boolean") st[k] = r[k];
   if (typeof r.name === "string") st.name = r.name.slice(0, 20);
   return { habits, log, prog, settings: st };
 }
 let S = load();
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (_) { toast("Enregistrement impossible : stockage plein ou bloqué."); } };
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (_) { toast("Enregistrement impossible : stockage plein ou bloqué."); } mirror(); };
 
 function applySettings() {
   const s = S.settings, r = document.documentElement;
@@ -424,6 +427,24 @@ function viewStats() {
 const sw = (k, label, desc) => `<label class="row2"><span><b>${label}</b>${desc ? `<small>${desc}</small>` : ""}</span><span class="switch"><input type="checkbox" data-sk="${k}" ${S.settings[k] ? "checked" : ""}><i></i></span></label>`;
 const seg = (k, opts) => `<div class="seg" role="group">${opts.map(([v, l]) => `<button type="button" data-sk="${k}" data-sv="${v}" class="${S.settings[k] === v ? "on" : ""}">${l}</button>`).join("")}</div>`;
 
+function notifGroup() {
+  const perm = notifPerm(), on = notifOn(), ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  let state = on ? "Activées" : perm === "denied" ? "Bloquées dans le navigateur" : perm === "unsupported" ? "Non disponibles ici" : "Désactivées";
+  let help = "";
+  if (perm === "unsupported") help = ios ? "Sur iPhone, installe d'abord Élan sur l'écran d'accueil (bouton Télécharger), puis rouvre l'appli : les notifications seront disponibles." : "Ce navigateur ne gère pas les notifications. Essaie Chrome, Edge ou Firefox.";
+  else if (perm === "denied") help = "Tu as bloqué les notifications pour ce site. Autorise-les dans les réglages du navigateur (icône 🔒 à côté de l'adresse), puis reviens ici.";
+  const rows = on ? `
+      ${S.settings.rem.map((r, i) => `<div class="row2"><span><b>${REM_NAMES[i]}</b></span>
+        <input type="time" class="txtin" style="max-width:7rem" data-rem="${i}" data-rf="t" value="${r.t}" aria-label="Heure du ${REM_NAMES[i].toLowerCase()}">
+        <span class="switch"><input type="checkbox" data-rem="${i}" data-rf="on" ${r.on ? "checked" : ""} aria-label="${REM_NAMES[i]}"><i></i></span></div>`).join("")}
+      ${sw("onlyIfLeft", "Seulement s'il reste des habitudes", "Pas de rappel si tout est déjà fait")}
+      <div class="row2"><span><b>Tester</b><small>Envoie une notification maintenant</small></span><button class="btn ghost" id="ntest">Envoyer un test</button></div>` : "";
+  return `<div class="group"><h2>Notifications</h2><div class="card rows">
+      <label class="row2"><span><b>Autoriser les notifications</b><small>${state}</small></span><span class="switch"><input type="checkbox" data-sk="notif" ${on ? "checked" : ""} ${perm === "unsupported" ? "disabled" : ""}><i></i></span></label>${rows}</div>
+    ${help ? `<p class="hint" style="margin:.6rem .3rem 0">${help}</p>` : ""}
+    ${on ? `<p class="hint" style="margin:.6rem .3rem 0">Les rappels partent à l'heure choisie quand Élan est ouvert ou tourne en arrière-plan. Sur Chrome (appli installée), ils peuvent aussi arriver appli fermée, selon l'économie d'énergie de ton téléphone.</p>` : ""}</div>`;
+}
+
 function viewSettings() {
   const s = S.settings, arch = S.habits.filter(h => h.archived);
   return `<h1><span class="gt">Paramètres</span></h1>
@@ -446,6 +467,8 @@ function viewSettings() {
       ${sw("confetti", "Confettis 🎉", "Quand la journée est à 100 %")}
       ${sw("sound", "Sons", "Petite mélodie à chaque réussite")}
       ${sw("vibrate", "Vibration", "Au toucher, sur téléphone")}</div></div>
+
+    ${notifGroup()}
 
     <div class="group"><h2>Données</h2>
       <div class="card set"><b>Sauvegarde</b><p>Tes données sont uniquement sur cet appareil. Exporte-les pour les garder en sécurité ou les passer sur un autre appareil.</p>
@@ -570,7 +593,8 @@ $("#app").addEventListener("click", e => {
   else if (b.id === "wipe") {
     if (confirm("Tout effacer définitivement ? Pense à exporter avant.")) { S.habits = []; S.log = {}; S.prog = {}; shown = 0; save(); tab = "today"; toast("Données effacées."); render(); }
   }
-  else if (b.id === "resetset") { S.settings = { ...DEFAULTS }; applySettings(); save(); toast("Paramètres réinitialisés."); render(); }
+  else if (b.id === "resetset") { S.settings = clean({}).settings; applySettings(); save(); toast("Paramètres réinitialisés."); render(); }
+  else if (b.id === "ntest") notify("Ça marche ! 🔔", "Voilà à quoi ressembleront tes rappels Élan.", "elan-test");
   else if (b.id === "dl") download();
 });
 // Jauge et paramètres : mise à jour en direct pendant le glissement ou la saisie.
@@ -586,6 +610,13 @@ $("#app").addEventListener("change", e => {
     if (all) celebrate();
     return;
   }
+  if (el.dataset.rem !== undefined) {
+    const r = S.settings.rem[+el.dataset.rem];
+    if (el.dataset.rf === "on") { r.on = el.checked; save(); render(); }
+    else if (/^([01]\d|2[0-3]):[0-5]\d$/.test(el.value)) { r.t = el.value; idbSet("fired", { date: todayKey(), ids: [] }).catch(() => {}); save(); }
+    return;
+  }
+  if (el.dataset.sk === "notif") { if (el.checked) enableNotifs(); else setSetting("notif", false); return; }
   if (el.type === "checkbox" && el.dataset.sk) { setSetting(el.dataset.sk, el.checked); return; }
   if (el.id !== "file" || !el.files[0]) return;
   const f = el.files[0];
@@ -597,6 +628,77 @@ $("#app").addEventListener("change", e => {
     S = n; applySettings(); save(); tab = "today"; toast("Import réussi."); render();
   }).catch(() => toast("Fichier invalide."));
 });
+
+/* ---------- notifications ----------
+   Rappels programmés à l'heure choisie. Ils partent quand Élan est ouvert (même en arrière-plan) et, sur les
+   navigateurs qui le permettent (Chrome installé), via la synchro périodique du service worker. Aucun serveur. */
+const notifSupported = () => "Notification" in window && "serviceWorker" in navigator;
+const notifPerm = () => "Notification" in window ? Notification.permission : "unsupported";
+const notifOn = () => S.settings.notif && notifPerm() === "granted";
+
+// Petite base IndexedDB partagée avec le service worker (qui n'a pas accès à localStorage).
+const idb = (mode, fn) => new Promise((res, rej) => {
+  const q = indexedDB.open("elan", 1);
+  q.onupgradeneeded = () => q.result.createObjectStore("kv");
+  q.onerror = () => rej(q.error);
+  q.onsuccess = () => { const tx = q.result.transaction("kv", mode), r = fn(tx.objectStore("kv")); tx.oncomplete = () => res(r && r.result); tx.onerror = () => rej(tx.error); };
+});
+const idbGet = k => idb("readonly", s => s.get(k));
+const idbSet = (k, v) => idb("readwrite", s => s.put(v, k));
+
+function buildMsg(i) {
+  const t = todayKey(), all = forDay(t), left = all.filter(h => !done(h, t)), nm = S.settings.name, who = nm ? nm + ", " : "";
+  if (!all.length) return null;
+  const list = left.slice(0, 4).map(h => h.name).join(", ") + (left.length > 4 ? "…" : ""), pl = left.length > 1 ? "s" : "";
+  if (S.settings.onlyIfLeft && !left.length) return null;
+  if (i === 0) return { title: `Bonjour${nm ? " " + nm : ""} ☀️`, body: `${all.length} habitude${all.length > 1 ? "s" : ""} t'attendent aujourd'hui : ${list}.` };
+  if (i === 1) return { title: "Petit point 🌿", body: left.length ? `${who}il te reste ${left.length} habitude${pl} : ${list}.` : "Tout est fait pour l'instant, bravo !" };
+  return { title: "Bilan du soir 🌙", body: left.length ? `${who}encore un effort, il reste ${left.length} habitude${pl} : ${list}.` : `Journée à ${Math.round(dayPct(t))} % : bravo ! 🎉` };
+}
+// Copie des rappels pour le service worker.
+function mirror() {
+  if (!window.indexedDB) return;
+  const st = { date: todayKey(), notif: notifOn(), rem: S.settings.rem.map((r, i) => { const m = buildMsg(i); return { on: r.on, t: r.t, skip: !m, title: m && m.title, body: m && m.body }; }) };
+  idbSet("state", st).catch(() => {});
+}
+async function notify(title, body, tag) {
+  try { const reg = await navigator.serviceWorker.ready; await reg.showNotification(title, { body, icon: "icons/icon-192.png", badge: "icons/icon-192.png", tag, data: { url: "./" } }); }
+  catch (_) { try { new Notification(title, { body, icon: "icons/icon-192.png" }); } catch (__) {} }
+}
+async function registerPeriodic() {
+  try { const reg = await navigator.serviceWorker.ready; if (reg.periodicSync) await reg.periodicSync.register("elan-remind", { minInterval: 3600 * 1000 }); } catch (_) {}
+}
+let checking = false;
+async function checkReminders() {
+  if (!notifOn() || checking) return;
+  checking = true;
+  try {
+    const now = new Date(), today = todayKey(), mins = now.getHours() * 60 + now.getMinutes();
+    let fired = (await idbGet("fired")) || {}; if (fired.date !== today) fired = { date: today, ids: [] };
+    let changed = false;
+    S.settings.rem.forEach((r, i) => {
+      if (!r.on || fired.ids.includes(i)) return;
+      const [h, m] = r.t.split(":").map(Number), at = h * 60 + m;
+      if (mins < at || mins - at > 90) return;                 // pas encore l'heure, ou trop tard pour que ça serve encore
+      fired.ids.push(i); changed = true;
+      const msg = buildMsg(i); if (msg) notify(msg.title, msg.body, "elan-" + i);
+    });
+    if (changed) await idbSet("fired", fired);
+  } catch (_) {} finally { checking = false; }
+}
+async function enableNotifs() {
+  if (!("Notification" in window)) { toast("Les notifications ne sont pas disponibles ici."); render(); return; }
+  let p = Notification.permission;
+  if (p === "default") { try { p = await Notification.requestPermission(); } catch (_) {} }
+  if (p === "granted") {
+    S.settings.notif = true; save(); registerPeriodic();
+    notify("Notifications activées ✅", "Tu recevras tes rappels d'habitudes à l'heure choisie.", "elan-on"); toast("Notifications activées.");
+  } else {
+    S.settings.notif = false; save();
+    toast(p === "denied" ? "Notifications bloquées : autorise-les dans les réglages du navigateur." : "Autorisation refusée.");
+  }
+  render();
+}
 
 /* ---------- divers ---------- */
 let tt;
@@ -628,9 +730,12 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden) return;
   const t = todayKey();
   if (t !== lastDay) { if (sel === lastDay) sel = t; lastDay = t; render(); }
+  mirror(); checkReminders();
 });
+setInterval(checkReminders, 30000);
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applySettings);
 
 if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
 applySettings();
 render();
+mirror(); checkReminders(); if (notifOn()) registerPeriodic();
