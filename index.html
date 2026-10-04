@@ -31,6 +31,7 @@ h2{font-size:1.05rem;margin:1.6rem 0 .6rem}
 .sub{color:var(--muted);margin:.1rem 0 0}
 .sub::first-letter{text-transform:uppercase}
 .head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
+.btn.dl{padding:.55rem .95rem;font-size:.9rem;white-space:nowrap;flex:0 0 auto}
 .iconbtn{border:1px solid var(--line);background:var(--card);border-radius:12px;width:2.6rem;height:2.6rem;display:grid;place-items:center;font-size:1.2rem;box-shadow:var(--shadow)}
 .iconbtn:disabled{opacity:.35;cursor:default}
 .card{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow)}
@@ -310,7 +311,6 @@ function render() {
   $("#fab").style.display = tab === "settings" ? "none" : "";
   document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === tab));
   $("#app").innerHTML = tab === "today" ? viewToday() : tab === "stats" ? viewStats() : viewSettings();
-  const ib = $("#installBox"); if (ib && deferred) ib.hidden = false;
   if (tab === "today") animateMeter();
 }
 
@@ -368,7 +368,7 @@ function viewToday() {
       <div class="mt"><div><span class="mn" id="mnum">${Math.round(shown)}</span><span class="mu">%</span></div>
         <div class="ml"><b>${label}</b><span id="mmsg">${esc(meterMsg(dp, hs.length, nd))}</span></div></div>
       <div class="mbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${dp}" aria-label="Avancement de la journée"><span id="mfill" style="width:${shown}%"></span></div></div></div>
-    <div class="head"><div><h1>Habitudes</h1><p class="sub">${esc(d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }))}</p></div></div>
+    <div class="head"><div><h1>Habitudes</h1><p class="sub">${esc(d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" }))}</p></div>${installed() ? "" : `<button class="btn dl" id="dl">⬇ Télécharger</button>`}</div>
     <div class="week"><button class="iconbtn" data-week="-1" aria-label="Semaine précédente">‹</button><div class="days">${strip}</div>
     <button class="iconbtn" data-week="1" aria-label="Semaine suivante" ${weekBack === 0 ? "disabled" : ""}>›</button></div>
     ${body}`;
@@ -441,7 +441,7 @@ function viewStats() {
 function viewSettings() {
   const arch = S.habits.filter(h => h.archived);
   return `<h1>Réglages</h1>
-    <div class="card set" id="installBox" hidden style="margin-top:1rem"><b>Installer l'application</b><p>Ajoute Habitudes à ton écran d'accueil : elle s'ouvre comme une vraie app, même sans internet.</p><button class="btn" id="install">Installer</button></div>
+    ${installed() ? "" : `<div class="card set" id="installBox" style="margin-top:1rem"><b>Télécharger l'application</b><p>Ajoute Habitudes à ton écran d'accueil : elle s'ouvre comme une vraie app, même sans internet.</p><button class="btn" id="dl">⬇ Télécharger</button></div>`}
     <div class="card set" style="margin-top:1rem"><b>Sauvegarde</b><p>Tes données sont uniquement sur cet appareil. Exporte-les pour les garder en sécurité ou les passer sur un autre appareil.</p>
       <div class="row"><button class="btn ghost" id="export">Exporter (fichier)</button><button class="btn ghost" id="import">Importer…</button></div>
       <input type="file" id="file" accept="application/json,.json" hidden></div>
@@ -560,7 +560,7 @@ $("#app").addEventListener("click", e => {
   else if (b.id === "wipe") {
     if (confirm("Tout effacer définitivement ? Pense à exporter avant.")) { S = { habits: [], log: {}, prog: {} }; shown = 0; save(); tab = "today"; toast("Données effacées."); render(); }
   }
-  else if (b.id === "install" && deferred) { deferred.prompt(); deferred.userChoice.finally(() => { deferred = null; render(); }); }
+  else if (b.id === "dl") download();
 });
 // Jauge : mise à jour en direct pendant le glissement, enregistrement et message de fin au relâchement.
 $("#app").addEventListener("input", e => { if (e.target.dataset.gauge) live(e.target); });
@@ -587,7 +587,24 @@ let tt;
 function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(tt); tt = setTimeout(() => t.classList.remove("show"), 2600); }
 
 let deferred = null;
-window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferred = e; const b = $("#installBox"); if (b) b.hidden = false; });
+const installed = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+
+// Bouton « Télécharger » : lance l'installation du navigateur si elle est disponible, sinon explique comment faire.
+function download() {
+  if (deferred) { deferred.prompt(); deferred.userChoice.finally(() => { deferred = null; render(); }); return; }
+  const ua = navigator.userAgent, ios = /iPhone|iPad|iPod/.test(ua), android = /Android/.test(ua);
+  const steps = ios ? ["Ouvre cette page dans <b>Safari</b>.", "Appuie sur le bouton <b>Partager</b> (carré avec une flèche vers le haut).", "Choisis <b>Sur l'écran d'accueil</b>, puis <b>Ajouter</b>."]
+    : android ? ["Ouvre cette page dans <b>Chrome</b>.", "Appuie sur le menu <b>⋮</b> en haut à droite.", "Choisis <b>Installer l'application</b> (ou <b>Ajouter à l'écran d'accueil</b>)."]
+    : ["Ouvre cette page dans <b>Chrome</b> ou <b>Edge</b>.", "Clique sur l'icône d'installation à droite de la barre d'adresse (écran avec une flèche), ou sur le menu <b>⋮</b> → <b>Installer Habitudes</b>."];
+  dlg.innerHTML = `<form method="dialog" style="display:grid;gap:1rem;padding:1.2rem">
+    <h3 style="margin:0">Télécharger l'application</h3>
+    <p style="margin:0;color:var(--muted)">Gratuite, sans compte, et elle fonctionne sans internet une fois installée.</p>
+    <ol style="margin:0;padding-left:1.2rem;display:grid;gap:.5rem">${steps.map(s => `<li>${s}</li>`).join("")}</ol>
+    <button type="button" class="btn" id="cancel">Compris</button></form>`;
+  dlg.showModal();
+}
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferred = e; });
+window.addEventListener("appinstalled", () => { deferred = null; toast("Application installée !"); render(); });
 
 // Nouveau jour (appli restée ouverte, ou retour dessus) : on repasse sur aujourd'hui.
 let lastDay = todayKey();
