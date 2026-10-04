@@ -22,7 +22,8 @@ const SUGGEST = [
   ["📖","Lire 30 pages",30,"pages","mind"], ["🧘","Méditer 15 min",15,"min","mind"], ["💪","Faire du sport 45 min",45,"min","sport"],
   ["🥗","Manger 5 fruits et légumes",5,"portions","nutri"], ["😴","Dormir 8 h",8,"h","sleep"],
   ["💼","Travail concentré 2 h",2,"h","work"], ["❤️","Appeler un proche",0,"","rel"],
-  ["🦷","Me brosser les dents",0,"","other"], ["📝","Écrire dans mon journal",0,"","mind"]
+  ["🦷","Me brosser les dents",0,"","other"], ["📝","Écrire dans mon journal",0,"","mind"],
+  ["📖","Apprendre 20 min",20,"min","mind"], ["📝","Planifier ma journée",0,"","work"], ["😴","Écrans coupés avant 22 h",0,"","sleep"]
 ];
 const QUOTES = [
   "Petit à petit, l'oiseau fait son nid.", "Ce n'est pas la perfection qui compte, c'est la régularité.",
@@ -38,8 +39,10 @@ const BADGES = [
   ["💯","Centurion","100 validations", s => s.total >= 100], ["🔥","3 d'affilée","Série de 3 jours", s => s.best >= 3],
   ["⚡","Semaine de feu","Série de 7 jours", s => s.best >= 7], ["🏆","Mois parfait","Série de 30 jours", s => s.best >= 30],
   ["🎯","Journée parfaite","Tout à 100 % un jour", s => s.perfect >= 1], ["🧩","Collectionneur","5 habitudes", s => s.habits >= 5],
-  ["🌈","Équilibré","3 catégories actives", s => s.cats >= 3]
+  ["🌈","Équilibré","3 catégories actives", s => s.cats >= 3],
+  ["🎯","Premier défi","1 défi réussi", s => s.chals >= 1], ["🏁","Défi de 30 jours","Un défi de 30 jours réussi", s => s.chal30 >= 1]
 ];
+const GOALS = [["sport", "🏃", "Bouger plus"], ["mind", "🧠", "Me sentir mieux"], ["nutri", "🥗", "Mieux manger"], ["sleep", "😴", "Mieux dormir"], ["work", "💼", "Être plus productif"], ["rel", "❤️", "Soigner mes proches"]];
 const DEFAULTS = { theme: "auto", accent: ACCENTS[0], fs: "m", anim: true, ws: "mon", doneLast: false, streaks: true, quote: true, vibrate: true, sound: false, confetti: true, name: "", notif: false, onlyIfLeft: true, joker: true, serverPush: true };
 const REM_NAMES = ["Rappel du matin", "Rappel de l'après-midi", "Rappel du soir", "Revue du dimanche"];
 const REM_DEFAULT = [{ on: true, t: "08:00" }, { on: false, t: "14:00" }, { on: true, t: "20:00" }, { on: false, t: "19:00" }];
@@ -96,7 +99,10 @@ function clean(s) {
     created: h.created,
     archived: !!h.archived,
     goal: h.goal && Number.isFinite(h.goal.target) && h.goal.target > 0 && h.goal.target <= 1e6
-      ? { target: h.goal.target, unit: String(h.goal.unit || "").slice(0, 12) } : null
+      ? { target: h.goal.target, unit: String(h.goal.unit || "").slice(0, 12) } : null,
+    // défi : valider l'habitude N jours (pas forcément d'affilée) à partir de la date de départ
+    challenge: h.challenge && Number.isInteger(h.challenge.days) && h.challenge.days >= 1 && h.challenge.days <= 365 && isKey(h.challenge.start)
+      ? { days: h.challenge.days, start: h.challenge.start, completed: isKey(h.challenge.completed) ? h.challenge.completed : "" } : null
   }));
   const ids = new Set(habits.map(h => h.id)), log = {}, prog = {};
   if (s.log && typeof s.log === "object") for (const [k, v] of Object.entries(s.log)) {
@@ -121,7 +127,7 @@ function clean(s) {
   const jokers = (Array.isArray(s.jokers) ? s.jokers : []).filter(isKey).slice(-400);
   const num = v => Number.isFinite(v) && v > 0 ? v : 0;
   const sync = /^[A-Z2-9]{4}(-[A-Z2-9]{4}){4}$/.test(s.sync || "") ? s.sync : "";
-  return { habits, log, prog, jokers: [...new Set(jokers)], settings: st, updated: num(s.updated), backup: num(s.backup), snooze: num(s.snooze), sync };
+  return { habits, log, prog, jokers: [...new Set(jokers)], settings: st, updated: num(s.updated), backup: num(s.backup), snooze: num(s.snooze), sync, onboarded: s.onboarded === true || habits.length > 0 };
 }
 let S = load();
 // Enregistre dans le navigateur, puis déclenche (en différé) la copie vers le fichier, la synchro et les rappels serveur.
@@ -225,8 +231,26 @@ function globalStats() {
     totalDone += l.length;
     const d = forDay(k); if (d.length && d.every(h => done(h, k))) perfect++;
   }
-  return { total: totalDone, perfect, habits: hs.length, cats: new Set(hs.map(h => h.cat)).size, best: Math.max(0, ...hs.map(bestStreak)) };
+  const won = S.habits.filter(h => h.challenge && h.challenge.completed);
+  return { total: totalDone, perfect, habits: hs.length, cats: new Set(hs.map(h => h.cat)).size, best: Math.max(0, ...hs.map(bestStreak)),
+    chals: won.length, chal30: won.filter(h => h.challenge.days >= 30).length };
 }
+
+/* ---------- défis ---------- */
+const chalCount = h => { const c = h.challenge; if (!c) return 0; let n = 0; for (const [k, l] of Object.entries(S.log)) if (k >= c.start && l.includes(h.id)) n++; return n; };
+// Un défi est réussi quand l'habitude a été validée autant de jours que prévu ; renvoie l'habitude qui vient de le réussir.
+function checkChallenges() {
+  for (const h of active()) {
+    const c = h.challenge;
+    if (c && !c.completed && chalCount(h) >= c.days) { c.completed = todayKey(); save(); return h; }
+  }
+  return null;
+}
+function celebrateChallenge(h) { confetti(); setTimeout(confetti, 450); beep([523, 659, 784, 1047, 1319]); toast(`🏆 Défi de ${h.challenge.days} jours réussi : ${h.name} !`); }
+const chalBar = h => {
+  const c = h.challenge; if (!c || c.completed) return "";
+  return `<span class="chbar" aria-hidden="true"><i style="width:${Math.min(100, Math.round(chalCount(h) / c.days * 100))}%"></i></span>`;
+};
 
 /* ---------- retours : vibration, son, confettis ---------- */
 let ac;
@@ -331,7 +355,7 @@ function viewToday() {
       return `<div class="hab card${dn ? " done" : ""}" style="--c:${h.color}" data-card="${h.id}">
         <button class="check" data-toggle="${h.id}" aria-pressed="${dn}" aria-label="${dn ? "Décocher" : "Cocher"} ${esc(h.name)}">${dn ? "✓" : esc(h.emoji)}</button>
         <button class="txt" data-toggle="${h.id}"><span class="name">${esc(h.name)}</span>
-          <span class="meta">${metaText(h, sel)}</span></button>
+          <span class="meta">${metaText(h, sel)}</span>${chalBar(h)}</button>
         <button class="more" data-edit="${h.id}" aria-label="Modifier ${esc(h.name)}">⋯</button>
         ${h.goal ? `<div class="gauge" style="--p:${p};--pc:${pctColor(p)}"><input type="range" min="0" max="100" step="1" value="${p}" data-gauge="${h.id}" aria-label="Avancement de ${esc(h.name)}">
           <div class="scale"><span>0 %</span><span>50 %</span><span>100 %</span></div></div>` : ""}</div>`;
@@ -370,9 +394,10 @@ function reviewBanner(t) {
 // Texte sous le nom : quantité atteinte pour une habitude chiffrée, série de jours sinon.
 function metaText(h, k) {
   const s = S.settings.streaks ? streak(h) : 0, streakTxt = s ? `🔥 ${s} ${s > 1 ? "jours" : "jour"} d'affilée` : "";
-  if (!h.goal) return esc(streakTxt || scheduleText(h));
+  const c = h.challenge, chTxt = c ? (c.completed ? "🏆 défi réussi" : `🎯 défi ${chalCount(h)}/${c.days}`) : "";
+  if (!h.goal) return esc(streakTxt || (chTxt ? "" : scheduleText(h))) + (chTxt ? (streakTxt ? " · " : "") + esc(chTxt) : "");
   const p = pct(h, k), amount = `${nf.format(Math.round(h.goal.target * p) / 100)} / ${nf.format(h.goal.target)}${h.goal.unit ? " " + esc(h.goal.unit) : ""}`;
-  return `${amount} · <span class="pcol" style="--pc:${pctColor(p)}">${p} %</span>${streakTxt ? " · " + streakTxt : ""}`;
+  return `${amount} · <span class="pcol" style="--pc:${pctColor(p)}">${p} %</span>${streakTxt ? " · " + streakTxt : ""}${chTxt ? " · " + esc(chTxt) : ""}`;
 }
 function meterMsg(p, n, nd) {
   if (!n) return "Rien de prévu ce jour-là";
@@ -444,6 +469,64 @@ function weekStats(start) {
 }
 const TIPS = ["Accroche-la à un moment fixe de ta journée (après le café, avant de dormir…).", "Réduis l'objectif de moitié pendant une semaine : mieux vaut petit mais régulier.",
   "Place un rappel à l'heure où tu es le plus disponible.", "Prépare tout la veille pour que ce soit plus facile à lancer."];
+// Défis en cours et réussis.
+function chalSection() {
+  const hs = S.habits.filter(h => h.challenge).sort((a, b) => (a.challenge.completed ? 1 : 0) - (b.challenge.completed ? 1 : 0));
+  if (!hs.length) return "";
+  return `<h2>🎯 Défis</h2>` + hs.map(h => {
+    const c = h.challenge, n = Math.min(c.days, chalCount(h));
+    return `<div class="card hs" style="--c:${h.color}"><div class="top"><span style="font-size:1.4rem">${esc(h.emoji)}</span><b>${esc(h.name)}</b>
+      <span class="hint">${c.completed ? "🏆 réussi le " + esc(parse(c.completed).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })) : `${n} / ${c.days} jours`}</span></div>
+      <div class="bar" style="margin-top:.6rem"><span style="width:${c.completed ? 100 : Math.round(n / c.days * 100)}%"></span></div></div>`;
+  }).join("");
+}
+
+// Image à partager (score de la semaine) : dessinée sur un canevas, envoyée via le menu de partage du téléphone ou téléchargée.
+function rrect(g, x, y, w, h, r) { r = Math.min(r, h / 2, w / 2); g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+async function shareWeek() {
+  const t = todayKey(), start = addDays(wk(t), -7 * reviewOff), cur = weekStats(start);
+  if (cur.score === null) { toast("Pas encore de résultat à partager."); return; }
+  const sc = Math.round(cur.score), W = 1080, H = 1350, c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d"), font = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Color Emoji', sans-serif", acc = S.settings.accent;
+  const bg = g.createLinearGradient(0, 0, W, H); bg.addColorStop(0, "#0f161c"); bg.addColorStop(1, "#1f3140"); g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  const glow = g.createRadialGradient(W * 0.85, 0, 0, W * 0.85, 0, 760); glow.addColorStop(0, acc + "66"); glow.addColorStop(1, acc + "00"); g.fillStyle = glow; g.fillRect(0, 0, W, H);
+  g.textAlign = "left"; g.fillStyle = "#fff"; g.font = `800 70px ${font}`; g.fillText("Élan", 110, 150);
+  g.fillStyle = "#9db0bf"; g.font = `500 38px ${font}`;
+  const end = addDays(start, 6), fmt = k => parse(k).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  g.fillText(`Ma semaine · ${fmt(start)} – ${fmt(end)}`, 110, 215);
+  // anneau du score
+  const cx = W / 2, cy = 540, R = 230;
+  g.lineWidth = 52; g.lineCap = "round"; g.strokeStyle = "rgba(255,255,255,.12)"; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.stroke();
+  g.strokeStyle = pctColor(sc); g.beginPath(); g.arc(cx, cy, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.02, sc / 100)); g.stroke();
+  g.textAlign = "center"; g.fillStyle = "#fff"; g.font = `800 190px ${font}`; g.fillText(`${sc}%`, cx, cy + 62);
+  g.fillStyle = "#9db0bf"; g.font = `600 40px ${font}`; g.fillText("de réussite", cx, cy + 130);
+  // barres de la semaine
+  const bw = 96, gap = 26, x0 = (W - (7 * bw + 6 * gap)) / 2, by = 870, bh = 180;
+  for (let i = 0; i < 7; i++) {
+    const k = addDays(start, i), x = x0 + i * (bw + gap), has = k <= t && forDay(k).length > 0, r = has ? dayPct(k) : 0;
+    g.fillStyle = "rgba(255,255,255,.1)"; rrect(g, x, by, bw, bh, 24); g.fill();
+    if (has) { g.fillStyle = pctColor(r); rrect(g, x, by + bh - Math.max(16, bh * r / 100), bw, Math.max(16, bh * r / 100), 24); g.fill(); }
+    g.fillStyle = "#9db0bf"; g.font = `700 30px ${font}`; g.fillText(WD3[wday(k)], x + bw / 2, by + bh + 52);
+  }
+  // chiffres clés
+  const streakN = Math.max(0, ...active().map(streak)), boxes = [["🔥", streakN, streakN > 1 ? "jours d'affilée" : "jour d'affilée"], ["✅", cur.done, cur.done > 1 ? "validations" : "validation"], ["🎯", cur.perfect, cur.perfect > 1 ? "journées parfaites" : "journée parfaite"]];
+  const sw3 = 290, sg = 35, sx0 = (W - (3 * sw3 + 2 * sg)) / 2;
+  boxes.forEach(([ic, n, l], i) => {
+    const x = sx0 + i * (sw3 + sg); g.fillStyle = "rgba(255,255,255,.08)"; rrect(g, x, 1160, sw3, 130, 28); g.fill();
+    g.fillStyle = "#fff"; g.font = `800 54px ${font}`; g.fillText(`${ic} ${n}`, x + sw3 / 2, 1228);
+    g.fillStyle = "#9db0bf"; g.font = `500 26px ${font}`; g.fillText(l, x + sw3 / 2, 1268);
+  });
+  g.fillStyle = "#6f8496"; g.font = `500 28px ${font}`; g.fillText(location.host, W / 2, 1332);
+  const blob = await new Promise(r => c.toBlob(r, "image/png"));
+  const file = new File([blob], "elan-ma-semaine.png", { type: "image/png" });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: "Élan", text: `Ma semaine sur Élan : ${sc} % 💪 ${location.origin}` }); return; }
+  } catch (e) { if (e && e.name === "AbortError") return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "elan-ma-semaine.png";
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  toast("Image enregistrée : partage-la où tu veux 📤");
+}
+
 let reviewOff = 0;
 function reviewCard() {
   const t = todayKey(), cur = weekStats(addDays(wk(t), -7 * reviewOff)), prev = weekStats(addDays(wk(t), -7 * (reviewOff + 1)));
@@ -461,7 +544,7 @@ function reviewCard() {
       ${best ? `<li>🏆 <span><b>Ta meilleure habitude</b><br>${esc(best.h.emoji)} ${esc(best.h.name)} · ${Math.round(best.avg)} %</span></li>` : ""}
       ${weak && weak.avg < 100 && weak !== best ? `<li>🎯 <span><b>À renforcer</b><br>${esc(weak.h.emoji)} ${esc(weak.h.name)} · ${Math.round(weak.avg)} %<br><span class="hint">${TIPS[dayOfYear() % TIPS.length]}</span></span></li>` : ""}
       <li>✅ <span><b>${cur.done} validation${cur.done > 1 ? "s" : ""}</b> · ${cur.perfect} journée${cur.perfect > 1 ? "s" : ""} parfaite${cur.perfect > 1 ? "s" : ""}${cur.jokers ? ` · ${cur.jokers} joker 🃏` : ""}</span></li>
-    </ul></div></div>`;
+    </ul><button class="btn block" data-share style="margin-top:1rem">📤 Partager ma semaine</button></div></div>`;
 }
 
 function viewStats() {
@@ -512,6 +595,7 @@ function viewStats() {
     <h2>Équilibre <small><span class="seg"><button data-radar="7" class="${radarDays === 7 ? "on" : ""}">7 j</button><button data-radar="30" class="${radarDays === 30 ? "on" : ""}">30 j</button></span></small></h2>
     <div class="card radar">${radarSvg(radarDays)}</div>
     <h2>12 dernières semaines</h2><div class="card heat" aria-label="Calendrier des 12 dernières semaines">${cells}</div>
+    ${chalSection()}
     <h2>Badges <small>${got} / ${BADGES.length}</small></h2><div class="badges">${badges}</div>
     <h2>Par habitude</h2>${hs.map(h => {
       const r = rate(h, 30), c = catOf(h.cat);
@@ -599,7 +683,7 @@ function viewSettings() {
       ${fileCard()}${syncCard()}
       ${arch.length ? `<div class="card set"><b>Habitudes archivées</b><p>Elles n'apparaissent plus mais gardent leur historique.</p>${arch.map(h => `<div class="row" style="align-items:center;margin-bottom:.4rem"><span>${esc(h.emoji)}</span><span style="flex:1">${esc(h.name)}</span><button class="btn ghost" data-restore="${h.id}">Restaurer</button></div>`).join("")}</div>` : ""}
       <div class="card set"><b>Zone sensible</b><p>Effacer supprime toutes les habitudes et tout l'historique de cet appareil (tes paramètres sont gardés). Action définitive.</p>
-        <div class="row"><button class="btn danger" id="wipe">Tout effacer</button><button class="btn ghost" id="resetset">Réinitialiser les paramètres</button></div></div></div>
+        <div class="row"><button class="btn danger" id="wipe">Tout effacer</button><button class="btn ghost" id="resetset">Réinitialiser les paramètres</button><button class="btn ghost" id="replay">Revoir la présentation</button></div></div></div>
 
     ${installed() ? "" : `<div class="group"><h2>Application</h2><div class="card set"><b>Télécharger l'application</b><p>Ajoute Élan à ton écran d'accueil : elle s'ouvre comme une vraie app, même sans internet.</p><button class="btn" id="dl">⬇ Télécharger</button></div></div>`}
     <p class="legal">Élan · gratuit, sans compte, sans pub.<br>Aucune donnée n'est envoyée sur internet.</p>`;
@@ -610,8 +694,8 @@ const dlg = $("#dlg");
 let form = null;
 function openForm(id) {
   const h = id ? S.habits.find(x => x.id === id) : null;
-  form = h ? { ...h, days: [...h.days], id: h.id, gt: h.goal ? String(h.goal.target).replace(".", ",") : "", gu: h.goal ? h.goal.unit : "" }
-           : { id: null, name: "", emoji: EMOJIS[0], color: COLORS[0], cat: "other", days: [0,1,2,3,4,5,6], gt: "", gu: "" };
+  form = h ? { ...h, days: [...h.days], id: h.id, gt: h.goal ? String(h.goal.target).replace(".", ",") : "", gu: h.goal ? h.goal.unit : "", ch: h.challenge && !h.challenge.completed ? h.challenge.days : 0 }
+           : { id: null, name: "", emoji: EMOJIS[0], color: COLORS[0], cat: "other", days: [0,1,2,3,4,5,6], gt: "", gu: "", ch: 0 };
   drawForm(); dlg.showModal();
   if (!h) setTimeout(() => dlg.querySelector("#fname").focus(), 50);
 }
@@ -629,6 +713,9 @@ function drawForm() {
     <div class="f" style="display:grid;gap:.35rem"><b style="font-size:.92rem">Objectif chiffré <span class="hint">(facultatif)</span></b>
       <div class="goalrow"><input type="text" id="gt" inputmode="decimal" autocomplete="off" placeholder="Ex. : 10" value="${esc(form.gt)}" aria-label="Quantité à atteindre"><input type="text" id="gu" maxlength="12" autocomplete="off" placeholder="km, pages, min…" value="${esc(form.gu)}" aria-label="Unité"></div>
       <span class="hint">Avec un objectif, tu règles ta progression de 0 à 100 % avec une jauge. Sans objectif, c'est une simple case à cocher.</span></div>
+    <div class="f" style="display:grid;gap:.35rem"><b style="font-size:.92rem">🎯 Défi <span class="hint">(facultatif)</span></b>
+      <div class="cats">${[[0, "Aucun"], [7, "7 jours"], [21, "21 jours"], [30, "30 jours"]].map(([n, l]) => `<button type="button" class="chip${form.ch === n ? " on" : ""}" data-ch="${n}">${l}</button>`).join("")}</div>
+      <span class="hint">Valide cette habitude le nombre de jours choisi (pas forcément d'affilée) pour décrocher un badge. Le compte démarre aujourd'hui.</span></div>
     <p id="ferr" style="color:#d64545;margin:0;min-height:1.2em" role="alert"></p>
     <div class="acts">${isNew ? "" : `<button type="button" class="btn danger" id="arch">Archiver</button>`}
       <div class="r"><button type="button" class="btn ghost" id="cancel">Annuler</button><button type="submit" class="btn" id="ok">Enregistrer</button></div></div>
@@ -643,7 +730,8 @@ dlg.addEventListener("click", e => {
   if (b.dataset.ex !== undefined) {
     const [emoji, name, target, unit, cat] = SUGGEST[+b.dataset.ex];
     Object.assign(form, { name, emoji, cat, gt: target ? String(target) : "", gu: unit }); drawForm();
-  } else if (b.dataset.cat) { keep(); form.cat = b.dataset.cat; drawForm(); }
+  } else if (b.dataset.ch !== undefined) { keep(); form.ch = +b.dataset.ch; drawForm(); }
+  else if (b.dataset.cat) { keep(); form.cat = b.dataset.cat; drawForm(); }
   else if (b.dataset.emoji) { keep(); form.emoji = b.dataset.emoji; drawForm(); }
   else if (b.dataset.color) { keep(); form.color = b.dataset.color; drawForm(); }
   else if (b.dataset.dow !== undefined) {
@@ -671,12 +759,15 @@ dlg.addEventListener("submit", e => {
   const gtRaw = dlg.querySelector("#gt").value.trim(), target = parseFloat(gtRaw.replace(",", "."));
   if (gtRaw && !(target > 0 && target <= 1e6)) { err.textContent = "L'objectif doit être un nombre positif (ex. : 10)."; return; }
   const goal = gtRaw ? { target, unit: dlg.querySelector("#gu").value.trim().slice(0, 12) } : null;
+  const newChal = () => form.ch ? { days: form.ch, start: todayKey(), completed: "" } : null;
   if (form.id) {
-    const h = S.habits.find(x => x.id === form.id);
-    Object.assign(h, { name, emoji: form.emoji, color: form.color, cat: form.cat, days: [...form.days].sort(), goal });
+    const h = S.habits.find(x => x.id === form.id), old = h.challenge;
+    // défi : on garde le défi en cours s'il n'a pas changé, un défi réussi reste dans l'historique
+    const challenge = old && !old.completed && old.days === form.ch ? old : (old && old.completed && !form.ch ? old : newChal());
+    Object.assign(h, { name, emoji: form.emoji, color: form.color, cat: form.cat, days: [...form.days].sort(), goal, challenge });
     // Objectif retiré : l'avancement partiel n'a plus de sens, on le supprime (les jours terminés restent faits).
     if (!goal) for (const k of Object.keys(S.prog)) { delete S.prog[k][h.id]; if (!Object.keys(S.prog[k]).length) delete S.prog[k]; }
-  } else S.habits.push({ id: uid(), name, emoji: form.emoji, color: form.color, cat: form.cat, days: [...form.days].sort(), created: todayKey(), archived: false, goal });
+  } else S.habits.push({ id: uid(), name, emoji: form.emoji, color: form.color, cat: form.cat, days: [...form.days].sort(), created: todayKey(), archived: false, goal, challenge: newChal() });
   save(); dlg.close(); render();
 });
 
@@ -718,8 +809,10 @@ $("#app").addEventListener("click", e => {
     const was = forDay(sel).every(h => done(h, sel));
     toggle(d.toggle, sel);
     const now = forDay(sel).length && forDay(sel).every(h => done(h, sel));
+    const won = checkChallenges();
     render(); buzz();
-    if (now && !was) celebrate(); else if (S.habits.find(h => h.id === d.toggle) && done(S.habits.find(h => h.id === d.toggle), sel)) beep([660]);
+    if (won) celebrateChallenge(won);
+    else if (now && !was) celebrate(); else if (S.habits.find(h => h.id === d.toggle) && done(S.habits.find(h => h.id === d.toggle), sel)) beep([660]);
   }
   else if (d.edit) openForm(d.edit);
   else if (d.day) { sel = d.day; render(); }
@@ -729,6 +822,8 @@ $("#app").addEventListener("click", e => {
   else if ("joker" in d) { if (!toggleJoker(sel)) toast("Un seul joker par semaine."); else if (isJoker(sel)) toast("Joker utilisé : ta série est protégée 🃏"); render(); }
   else if ("review" in d) { tab = "stats"; reviewOff = 0; render(); const r = $("#review"); if (r) r.scrollIntoView({ behavior: "smooth", block: "start" }); }
   else if ("routines" in d) openRoutines();
+  else if ("share" in d) shareWeek();
+  else if (b.id === "replay") { S.onboarded = false; save(true); openOnboarding(); }
   else if ("new" in d) openForm();
   else if (d.sug !== undefined) {
     const [emoji, name, target, unit, cat] = SUGGEST[+d.sug];
@@ -763,8 +858,8 @@ $("#app").addEventListener("change", e => {
   const el = e.target;
   if (el.dataset.gauge) {
     const hs = forDay(sel), all = hs.length && hs.every(h => done(h, sel));
-    save(); render();
-    if (all) celebrate();
+    save(); const won = checkChallenges(); render();
+    if (won) celebrateChallenge(won); else if (all) celebrate();
     return;
   }
   if (el.dataset.rem !== undefined) {
@@ -1044,6 +1139,64 @@ async function syncDelete() {
   S.sync = ""; save(true); toast("Copie en ligne supprimée."); render();
 }
 
+/* ---------- écran de bienvenue (3 étapes) ---------- */
+let ob = { step: 0, name: "", goals: [], picks: [], chal: true };
+const obList = () => {
+  const g = ob.goals.length ? ob.goals : ["sport", "mind", "nutri"], idx = [];
+  SUGGEST.forEach((s, i) => { if (g.includes(s[4]) && idx.length < 7) idx.push(i); });
+  return idx;
+};
+function openOnboarding() {
+  ob = { step: 0, name: S.settings.name, goals: [], picks: [], chal: true };
+  $("#ob").hidden = false; document.body.style.overflow = "hidden"; obRender();
+}
+function obClose() { $("#ob").hidden = true; document.body.style.overflow = ""; }
+function obRender() {
+  const dots = [0, 1, 2].map(i => `<i class="${i === ob.step ? "on" : ""}"></i>`).join("");
+  let body;
+  if (ob.step === 0) body = `<img src="icons/icon-192.png" alt="" width="96" height="96" class="ob-logo">
+    <h1 class="ob-h">Bienvenue sur <span class="gt">Élan</span></h1>
+    <p class="ob-p">Construis de bonnes habitudes, un jour à la fois : séries, jauges, défis et statistiques. Gratuit, sans compte, et tes données restent chez toi.</p>
+    <label class="f" style="text-align:left">Comment t'appelles-tu ? <span class="hint">(facultatif)</span><input type="text" id="obname" maxlength="20" placeholder="Ton prénom" autocomplete="given-name" value="${esc(ob.name)}"></label>
+    <button class="btn block" data-obnext>Commencer →</button>`;
+  else if (ob.step === 1) body = `<h1 class="ob-h">Qu'est-ce qui compte pour toi ?</h1>
+    <p class="ob-p">Choisis un ou plusieurs thèmes : on te proposera des habitudes adaptées.</p>
+    <div class="ob-goals">${GOALS.map(([id, e, l]) => `<button type="button" class="obgoal${ob.goals.includes(id) ? " on" : ""}" data-obgoal="${id}"><span>${e}</span>${l}</button>`).join("")}</div>
+    <div class="ob-nav"><button class="btn ghost" data-obback>Retour</button><button class="btn" data-obnext>Suivant →</button></div>`;
+  else body = `<h1 class="ob-h">Tes premières habitudes</h1>
+    <p class="ob-p">Garde celles qui te plaisent : commence petit, tu pourras en ajouter ensuite.</p>
+    <div class="ob-picks">${obList().map(i => `<button type="button" class="obpick${ob.picks.includes(i) ? " on" : ""}" data-obpick="${i}"><span>${SUGGEST[i][0]} ${esc(SUGGEST[i][1])}</span><b>${ob.picks.includes(i) ? "✓" : ""}</b></button>`).join("")}</div>
+    <button type="button" class="obpick${ob.chal ? " on" : ""}" data-obchal style="margin-top:.8rem"><span>🎯 Relever un défi de 30 jours sur la première</span><b>${ob.chal ? "✓" : ""}</b></button>
+    <div class="ob-nav"><button class="btn ghost" data-obback>Retour</button><button class="btn" data-obfinish>C'est parti 🚀</button></div>`;
+  $("#ob").innerHTML = `<div class="ob-in"><div class="ob-top"><span class="ob-dots">${dots}</span><button class="ob-skip" data-obskip>Passer</button></div>${body}</div>`;
+}
+function obFinish() {
+  S.settings.name = ob.name.trim().slice(0, 20);
+  const have = new Set(S.habits.map(h => h.name.toLowerCase())); let first = null, n = 0;
+  for (const i of ob.picks) {
+    const [emoji, name, target, unit, cat] = SUGGEST[i];
+    if (have.has(name.toLowerCase())) continue;
+    const h = { id: uid(), name, emoji, cat, color: COLORS[S.habits.length % COLORS.length], days: [0,1,2,3,4,5,6], created: todayKey(), archived: false, goal: target ? { target, unit } : null,
+      challenge: !first && ob.chal ? { days: 30, start: todayKey(), completed: "" } : null };
+    if (!first) first = h;
+    S.habits.push(h); n++;
+  }
+  S.onboarded = true; save(); obClose(); tab = "today"; sel = todayKey(); shown = 0; applySettings(); render();
+  if (n) { confetti(); toast(`C'est parti${S.settings.name ? " " + S.settings.name : ""} ! ${n} habitude${n > 1 ? "s" : ""} ajoutée${n > 1 ? "s" : ""} ✨`); }
+}
+$("#ob").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const d = b.dataset;
+  if ("obskip" in d) { S.onboarded = true; save(true); obClose(); return; }
+  if ("obnext" in d) { if (ob.step === 1) ob.picks = obList().slice(0, 3); ob.step++; obRender(); return; }
+  if ("obback" in d) { ob.step--; obRender(); return; }
+  if (d.obgoal) { ob.goals = ob.goals.includes(d.obgoal) ? ob.goals.filter(x => x !== d.obgoal) : [...ob.goals, d.obgoal]; obRender(); return; }
+  if (d.obpick !== undefined) { const i = +d.obpick; ob.picks = ob.picks.includes(i) ? ob.picks.filter(x => x !== i) : [...ob.picks, i]; obRender(); return; }
+  if ("obchal" in d) { ob.chal = !ob.chal; obRender(); return; }
+  if ("obfinish" in d) obFinish();
+});
+$("#ob").addEventListener("input", e => { if (e.target.id === "obname") ob.name = e.target.value; });
+
 /* ---------- divers ---------- */
 let tt;
 function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(tt); tt = setTimeout(() => t.classList.remove("show"), 2600); }
@@ -1084,6 +1237,7 @@ matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applySetti
 if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
 applySettings();
 render();
+if (!S.onboarded) openOnboarding();
 mirror(); checkReminders(); if (notifOn()) registerPeriodic();
 // Demande au navigateur de ne pas effacer les données automatiquement.
 try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (_) {}
